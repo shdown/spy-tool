@@ -1,0 +1,19 @@
+{
+  "name": "vk",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo NO TEST COMMAND; false",
+    "build": "npx browserify -p esmify index.js -o public/packed.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@vkontakte/vk-connect": "^1.6.8"
+  },
+  "devDependencies": {
+    "browserify": "^16.5.0",
+    "esmify": "^2.1.1"
+  }
+}
