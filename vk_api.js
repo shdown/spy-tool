@@ -1,4 +1,4 @@
-import { vkSendRequest, VkRequestError } from './vk_request.js';
+import { monotonicNowMillis, sleepMillis } from "./utils.js";
 
 export class VkApiError extends Error {
     constructor(code, msg) {
@@ -9,9 +9,6 @@ export class VkApiError extends Error {
     }
 }
 
-const monotonicNowMillis = () => window.performance.now();
-const sleepMillis = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
 export class VkApiCancellation extends Error {
     constructor() {
         super('Cancellation');
@@ -19,19 +16,19 @@ export class VkApiCancellation extends Error {
     }
 }
 
-const MIN_DELAY_MILLIS = 0.36 * 1000;
+const MIN_DELAY_MILLIS = 360;
 
 export class VkApiSession {
-    constructor() {
-        this.accessToken = null;
-        this.rateLimitCallback = null;
-        this.lastRequestTimestamp = NaN;
-        this.cancelFlag = false;
+    constructor(transport) {
+        this._transport = transport;
+        this._rateLimitCallback = null;
+        this._lastRequestTimestamp = -Infinity;
+        this._cancelFlag = false;
     }
 
     _maybeThrowForCancel() {
-        if (this.cancelFlag) {
-            this.cancelFlag = false;
+        if (this._cancelFlag) {
+            this._cancelFlag = false;
             throw new VkApiCancellation();
         }
     }
@@ -48,87 +45,73 @@ export class VkApiSession {
     }
 
     cancel() {
-        this.cancelFlag = true;
-    }
-
-    setAccessToken(accessToken) {
-        this.accessToken = accessToken;
-        return this;
+        this._cancelFlag = true;
     }
 
     setRateLimitCallback(fn) {
-        this.rateLimitCallback = fn;
+        this._rateLimitCallback = fn;
         return this;
     }
 
-    async _limitRate(what, delayMillis) {
-        if (this.rateLimitCallback)
-            this.rateLimitCallback(what);
+    async _limitRate(reason, delayMillis) {
+        if (this._rateLimitCallback)
+            this._rateLimitCallback(reason);
         await this._sleepMillis(delayMillis);
     }
 
-    async _apiRequestNoRateLimit(method, params) {
-        if (!this.accessToken)
-            throw 'Access token was not set for this VkApiSession instance';
-
+    async _apiRequestNoRateLimit(method, params, raw) {
         const now = monotonicNowMillis();
-        const delay = now - this.lastRequestTimestamp;
+        const delay = now - this._lastRequestTimestamp;
         if (delay < MIN_DELAY_MILLIS)
             await this._sleepMillis(MIN_DELAY_MILLIS - delay);
 
         this._maybeThrowForCancel();
 
-        this.lastRequestTimestamp = monotonicNowMillis();
-        let result;
-        try {
-            result = await vkSendRequest(
-                'VKWebAppCallAPIMethod',
-                'VKWebAppCallAPIMethodResult',
-                'VKWebAppCallAPIMethodFailed',
-                {
-                    method: method,
-                    params: Object.assign({access_token: this.accessToken}, params),
-                    request_id: '1',
-                }
-            );
-        } catch (err) {
-            if (!(err instanceof VkRequestError))
-                throw err;
-            if (err.data.error_type === 'client_error') {
-                const reason = err.data.error_data.error_reason;
-                throw new VkApiError(reason.error_code, reason.error_msg);
-            } else {
-                throw err;
-            }
-        }
-        if (result.error)
-            throw new VkApiError(result.error.error_code, result.error.error_msg);
-        return result.response;
+        this._lastRequestTimestamp = monotonicNowMillis();
+
+        const result = await this._transport.callAPI(method, params);
+        return raw ? result : result.response;
     }
 
-    async apiRequest(method, params) {
+    async apiRequest(method, params, raw = false) {
         while (true) {
             try {
-                return await this._apiRequestNoRateLimit(method, params);
+                return await this._apiRequestNoRateLimit(method, params, raw);
             } catch (err) {
                 if (!(err instanceof VkApiError))
                     throw err;
                 // https://vk.com/dev/errors
                 switch (err.code) {
                 case 6:
-                    await this._limitRate('rate-limit', 3000);
+                    await this._limitRate('rateLimit', 3000);
                     break;
                 case 9: // this one was not seen in practice, but still...
-                    await this._limitRate('rate-limit-hard', 9000);
+                    await this._limitRate('rateLimitHard', 9000);
                     break;
                 case 1:
                 case 10:
-                    await this._limitRate('server-unavailable', 1000);
+                    await this._limitRate('serverUnavailable', 1000);
                     break;
                 default:
                     throw err;
                 }
             }
         }
+    }
+
+    async apiExecuteRaw(params) {
+        const result = await this.apiRequest('execute', params, /*raw*/ true);
+        const errors = result.execute_errors || [];
+        return {
+            response: result.response,
+            errors: errors.map(datum => new VkApiError(datum.error_code, datum.error_msg)),
+        };
+    }
+
+    async apiExecuteOrThrow(params) {
+        const {response, errors} = await this.apiExecuteRaw(params);
+        if (errors.length !== 0)
+            throw errors[0];
+        return response;
     }
 }

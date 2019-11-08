@@ -1,189 +1,282 @@
-import { VkApiError } from './vk_api.js';
+import { VkApiError } from "./vk_api.js";
+import { divCeil } from "./utils.js";
 
-const checkMultiplePosts = async (runtimeConfig, config, callback) => {
-    const code = `\
-var posts = API.wall.get({owner_id: ${config.oid}, offset: ${runtimeConfig.offset}, count: ${runtimeConfig.postsPerRequest}}).items;
-if (posts.length == 0) {
-    return [0, -1, [], []];
-}
-var too_big = [], result = [];
-var i = 0;
-while (i < posts.length) {
-    if (posts[i].from_id == ${config.uid}) {
-        result.push(posts[i].id);
-        result.push(0);
+const MAX_POSTS = 100;
+const MAX_COMMENTS = 100;
+const MAX_REQUESTS_IN_EXECUTE = 25;
+
+const isEPERM = (err) => err.code === 7;
+
+class Reader {
+    constructor(config) {
+        this._config = config;
+        this._cache = [];
+        this._cachePos = 0;
+        this._eof = false;
+        this._globalOffset = 0;
     }
-    var posters = API.wall.getComments({owner_id: ${config.oid}, post_id: posts[i].id, need_likes: 0, count: ${config.commentsPerRequest}, extended: 1, thread_items_count: 10}).profiles@.id;
-    var j = 0, found = false;
-    while (!found && j < posters.length) {
-        found = posters[j] == ${config.uid};
-        j = j + 1;
-    }
-    if (found) {
-        result.push(posts[i].id);
-        result.push(j);
-    } else {
-        if (posts[i].comments.count > ${config.commentsPerRequest}) {
-            too_big.push(posts[i].id);
+
+    _setEOF(reason) {
+        if (!this._eof) {
+            this._config.callback('postDiscoveryStop', reason);
+            this._eof = true;
         }
     }
-    i = i + 1;
-}
-return [posts.length, posts[posts.length-1].date, too_big, result];`;
-    return await config.session.apiRequest('execute', {code: code, v: '5.101'});
-};
 
-const checkSinglePost = async (postConfig, config, callback) => {
-    callback('single-post-with-execute', postConfig.postId);
-    const MAX_COMMENTS = 1000;
-    const code = `\
-var offset = 0, brk = false, found = false, result = 0;
-while (!brk) {
-    var posters = API.wall.getComments({owner_id: ${config.oid}, post_id: ${postConfig.postId}, need_likes: 0, count: ${MAX_COMMENTS}, offset: offset, extended: 1});
-    offset = offset + ${MAX_COMMENTS};
-    brk = offset >= posters.count;
-    posters = posters.profiles@.id;
-    var i = 0;
-    while (!found && i < posters.length) {
-        found = posters[i] == ${config.uid};
-        i = i + 1;
-    }
-    if (found) {
-        brk = true;
-        result = i;
-    }
-}
-return [result];`;
-    const result = await config.session.apiRequest('execute', {code: code, v: '5.101'});
-    return result[0] ? {postId: postConfig.postId, commentNo: result[0]} : null;
-};
-
-const checkSinglePostManually = async (postConfig, config, callback) => {
-    callback('single-post-manually', postConfig.postId);
-    const MAX_COMMENTS = 100;
-    let offset = 0;
-    while (true) {
-        const result = await config.session.apiRequest('wall.getComments', {
-            owner_id: config.oid,
-            thread_items_count: 10,
-            post_id: postConfig.postId,
-            need_likes: 0,
-            count: MAX_COMMENTS,
-            offset: offset,
-            extended: 1,
+    async _repopulateCache() {
+        const result = await this._config.session.apiRequest('wall.get', {
+            owner_id: this._config.oid,
+            offset: this._globalOffset,
+            count: MAX_POSTS,
             v: '5.101',
         });
-        for (let i = 0; i < result.profiles.length; ++i) // const index in result.profiles)
-            if (result.profiles[i].id === config.uid)
-                return {postId: postConfig.postId, commentNo: offset + i + 1};
-        offset += MAX_COMMENTS;
-        if (offset >= result.count)
-            break;
-    }
-    return null;
-};
 
-const searchOneOff = async (runtimeConfig, config, callback) => {
-    callback('check-one-off', runtimeConfig.offset);
-    const result = await config.session.apiRequest('wall.get', {
-        owner_id: config.oid,
-        offset: runtimeConfig.offset,
-        count: 1,
-        v: '5.101',
-    });
-    if (result.items.length === 0) {
-        callback('last', 'no-more-posts');
-        return false;
-    }
+        // Let's explicitly copy the slice -- I don't trust modern JS engines not to introduce a
+        // memory leak here.
+        const newCache = [...this._cache.slice(this._cachePos)];
 
-    if (result.items[0].from_id === config.uid) {
-        callback('found', {postId: postId, commentNo: 0});
-    } else {
-        const postId = result.items[0].id;
-        const datum = checkSinglePostManually({postId: postId}, config, callback);
-        if (datum !== null)
-            callback('found', datum);
-    }
-    runtimeConfig.offset += 1;
-    return true;
-};
-
-const searchPostsIteration = async (runtimeConfig, config, callback) => {
-    callback('offset', runtimeConfig.offset);
-
-    let result;
-    try {
-        result = await checkMultiplePosts(runtimeConfig, config, callback);
-    } catch (err) {
-        if (!(err instanceof VkApiError))
-            throw err;
-        if (err.code === 13 && /too many operations/i.test(err.msg)) {
-            runtimeConfig.postsPerRequest = config.pprAdjustFunc(runtimeConfig.postsPerRequest);
-            callback('ppr', runtimeConfig.postsPerRequest);
-            return true;
-        } else {
-            await callback.retrowOrIgnore(err);
-            // try to check the next post manually instead
-            try {
-                return await checkOneOff(runtimeConfig, config, callback);
-            } catch (err) {
-                if (!(err instanceof VkApiError))
-                    throw err;
-                await callback.retrowOrIgnore(err);
-                // skip this one
-                runtimeConfig.offset += 1;
-                return true;
+        for (const datum of result.items) {
+            const isPinned = datum.is_pinned;
+            if (datum.date < this._config.sinceTimestamp && !isPinned) {
+                this._setEOF('timeLimitReached');
+                break;
             }
+            if (isPinned && this._config.ignorePinned)
+                continue;
+            //if (datum.marked_as_ads)
+            //    continue;
+
+            const value = {
+                id: datum.id,
+                offset: 0,
+                total: datum.comments.count,
+                date: datum.date,
+                pinned: isPinned,
+            };
+            if (datum.from_id === this._config.uid) {
+                // TODO pass the datum to the callback
+                this._config.callback('found', {postId: datum.id, offset: -1});
+                value.offset = value.total;
+            }
+            this._config.callback('infoAdd', value);
+            newCache.push(value);
+        }
+        this._config.callback('infoFlush', null);
+
+        this._cache = newCache;
+        this._cachePos = 0;
+        if (result.items.length < MAX_POSTS)
+            this._setEOF('noNorePosts');
+        this._globalOffset += result.items.length;
+    }
+
+    _advance(n) {
+        const values = this._cache.slice(this._cachePos, this._cachePos + n);
+        this._cachePos += n;
+        return values;
+    }
+
+    async read(n) {
+        while (true) {
+            const available = this._cache.length - this._cachePos;
+            if (available >= n)
+                return {values: this._advance(n), eof: false};
+            if (this._eof)
+                return {values: this._advance(available), eof: true};
+            await this._repopulateCache();
         }
     }
+}
 
-    const [numTotalPosts, lastDate, tooBigIds, data] = result;
-    callback('last-date', lastDate);
+class HotGroup {
+    constructor(config, reader, groupSize) {
+        this._config = config;
+        this._hotArray = [];
+        this._eof = false;
+        this._reader = reader;
+        this._groupSize = groupSize;
+    }
 
-    for (let i = 0; i < data.length; i += 2)
-        callback('found', {postId: data[i], commentNo: data[i + 1]});
+    async getCurrent() {
+        while (this._hotArray.length < this._groupSize && !this._eof) {
+            const {values, eof} = await this._reader.read(this._groupSize - this._hotArray.length);
+            for (const value of values) {
+                if (value.offset !== value.total)
+                    this._hotArray.push(value);
+            }
+            this._eof = eof;
+        }
+        return this._hotArray;
+    }
 
-    for (const postId of tooBigIds) {
-        const postConfig = {postId: postId};
-        let datum;
+    decreaseCurrent(amountsById) {
+        const newHotArray = [];
+        for (let i = 0; i < this._hotArray.length; ++i) {
+            const value = this._hotArray[i];
+            const amount = amountsById[value.id];
+            let expellThis = false;
+            if (amount !== undefined && amount !== 0) {
+                value.offset += amount;
+                if (value.offset >= value.total) {
+                    value.offset = value.total;
+                    expellThis = true;
+                }
+                this._config.callback('infoUpdate', value);
+            }
+            if (!expellThis)
+                newHotArray.push(value);
+        }
+        this._config.callback('infoFlush', null);
+        this._hotArray = newHotArray;
+    }
+}
+
+const scheduleBatch = hotArray => {
+    const result = [];
+    for (let offsetSummand = 0; ; offsetSummand += MAX_COMMENTS) {
+        let pushedSomething = false;
+        for (const value of hotArray) {
+            const currentOffset = value.offset + offsetSummand;
+            if (currentOffset >= value.total)
+                continue;
+            result.push({id: value.id, offset: currentOffset});
+            pushedSomething = true;
+            if (result.length === MAX_REQUESTS_IN_EXECUTE)
+                break;
+        }
+        if (!pushedSomething || result.length === MAX_REQUESTS_IN_EXECUTE)
+            break;
+    }
+    return result;
+};
+
+const foolProofExecute = async (config, params) => {
+    const {response, errors} = await config.session.apiExecuteRaw(params);
+
+    if (errors.length === 0)
+        return response;
+
+    if (Array.isArray(response) && response.length !== 0) {
+        for (const error of errors)
+            if (!isEPERM(error))
+                throw error;
+        return response;
+    }
+
+    throw errors[0];
+};
+
+const executeBatch = async (config, hotArray) => {
+    const batch = scheduleBatch(hotArray);
+    let code = `var i = 0, r = [];`
+    code += `var d = [${batch.map(datum => datum.id).join(',')}];`;
+    code += `var o = [${batch.map(datum => datum.offset).join(',')}];`
+    code += `while (i < ${batch.length}) {`;
+    code += ` r.push(API.wall.getComments({`;
+    code += `  owner_id: ${config.oid}, post_id: d[i], count: ${MAX_COMMENTS},`;
+    code += `  offset: o[i], need_likes: 0, extended: 1, thread_items_count: 10`;
+    code += ` }).profiles@.id);`;
+    code += ` i = i + 1;`;
+    code += `}`;
+    code += `return r;`;
+
+    const executeResult = await foolProofExecute(config, {code: code, v: '5.101'});
+
+    const amountsById = {};
+    for (let i = 0; i < batch.length; ++i) {
+        const datum = batch[i];
+        const posterIds = executeResult[i];
+
+        const oldAmount = amountsById[datum.id] || 0;
+
+        if (posterIds.indexOf(config.uid) !== -1) {
+            config.callback('found', {postId: datum.id, offset: datum.offset});
+            amountsById[datum.id] = Infinity;
+        } else {
+            amountsById[datum.id] = oldAmount + MAX_COMMENTS;
+        }
+    }
+    return amountsById;
+};
+
+export const findPosts = async (config) => {
+    const reader = new Reader(config);
+    const hotGroup = new HotGroup(config, reader, MAX_REQUESTS_IN_EXECUTE);
+
+    while (true) {
+        const hotArray = await hotGroup.getCurrent();
+        if (hotArray.length === 0)
+            break;
+        let amountsById;
         try {
-            datum = await checkSinglePost(postConfig, config, callback);
+            amountsById = await executeBatch(config, hotArray);
         } catch (err) {
             if (!(err instanceof VkApiError))
                 throw err;
-            if (err.code === 13 && /too many (operations|api calls)/i.test(err.msg)) {
-                try {
-                    datum = await checkSinglePostManually(postConfig, config, callback);
-                } catch (err) {
-                    if (!(err instanceof VkApiError))
-                        throw err;
-                    // skip this one
-                    await callback.retrowOrIgnore(err);
-                    continue;
-                }
-            } else {
-                // skip this one
-                await callback.retrowOrIgnore(err);
-                continue;
+            const firstValue = hotArray[0];
+            try {
+                amountsById = await executeBatch(config, [firstValue]);
+            } catch (err2) {
+                if (!(err2 instanceof VkApiError))
+                    throw err2;
+                config.callback('error', {postId: firstValue.id, error: err2});
+                // Let's just skip this one.
+                amountsById = {};
+                amountsById[firstValue.id] = Infinity;
             }
         }
-        if (datum !== null)
-            callback('found', datum);
+        hotGroup.decreaseCurrent(amountsById);
     }
-
-    if (numTotalPosts < runtimeConfig.postsPerRequest) {
-        callback('last', 'no-more-posts');
-        return false;
-    }
-    if (lastDate <= config.timeLimit) {
-        callback('last', 'time-limit-reached');
-        return false;
-    }
-    runtimeConfig.offset += runtimeConfig.postsPerRequest;
-    return true;
 };
 
-export const searchPosts = async (config, callback) => {
-    const runtimeConfig = {offset: 0, postsPerRequest: config.pprInitial};
-    while (await searchPostsIteration(runtimeConfig, config, callback)) {}
+const gatherStatsBatch = async (config, batch, result) => {
+    let code = `var i = 0, r = [];`;
+    code += `var d = [${batch.join(',')}];`;
+    code += `while (i < ${batch.length}) {`;
+    code += ` r.push(API.wall.get({owner_id: d[i], offset: 0, count: ${MAX_POSTS}}));`;
+    code += ` i = i + 1;`;
+    code += `}`;
+    code += `return r;`;
+
+    const executeResult = await foolProofExecute(config, {code: code, v: '5.101'});
+    for (let i = 0; i < batch.length; ++i) {
+        const ownerDatum = executeResult[i];
+        const ownerId = batch[i];
+
+        let totalComments = 0;
+        let earliestTimestamp = Infinity;
+        let latestTimestamp = -Infinity;
+        for (const post of ownerDatum.items) {
+            const isPinned = post.is_pinned;
+            if (isPinned && config.ignorePinned)
+                continue;
+            totalComments += post.comments.count;
+            if (!isPinned) {
+                earliestTimestamp = Math.min(earliestTimestamp, post.date);
+                latestTimestamp = Math.max(latestTimestamp, post.date);
+            }
+        }
+
+        result[ownerId] = {
+            timeSpan: latestTimestamp - earliestTimestamp,
+            totalComments: totalComments,
+        };
+    }
+}
+
+export const gatherStats = async (config) => {
+    const result = {};
+    const oids = config.oids;
+    let offset = 0;
+    while (offset !== oids.length) {
+        const batchSize = Math.min(oids.length - offset, MAX_REQUESTS_IN_EXECUTE);
+        const batch = oids.slice(offset, offset + batchSize);
+        await gatherStatsBatch(config, batch, result);
+        offset += batchSize;
+        config.callback('progress', {
+            numerator: divCeil(offset, MAX_REQUESTS_IN_EXECUTE),
+            denominator: divCeil(oids.length, MAX_REQUESTS_IN_EXECUTE),
+        });
+    }
+    return result;
 };

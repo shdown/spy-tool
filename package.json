@@ -10,7 +10,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@vkontakte/vk-connect": "^1.6.8"
+    "@vkontakte/vk-connect": "^1.6.8",
+    "chart.js": "^2.9.1"
   },
   "devDependencies": {
     "browserify": "^16.5.0",
