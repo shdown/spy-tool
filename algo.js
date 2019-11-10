@@ -153,15 +153,8 @@ const scheduleBatch = hotArray => {
 const foolProofExecute = async (config, params) => {
     const {response, errors} = await config.session.apiExecuteRaw(params);
 
-    if (errors.length === 0)
+    if (errors.length === 0 || Array.isArray(response))
         return response;
-
-    if (Array.isArray(response) && response.length !== 0) {
-        for (const error of errors)
-            if (!isEPERM(error))
-                throw error;
-        return response;
-    }
 
     throw errors[0];
 };
@@ -184,8 +177,11 @@ const executeBatch = async (config, hotArray) => {
 
     const amountsById = {};
     for (let i = 0; i < batch.length; ++i) {
-        const datum = batch[i];
         const posterIds = executeResult[i];
+        if (!Array.isArray(posterIds))
+            continue;
+
+        const datum = batch[i];
 
         const oldAmount = amountsById[datum.id] || 0;
 
@@ -240,13 +236,21 @@ const gatherStatsBatch = async (config, batch, result) => {
 
     const executeResult = await foolProofExecute(config, {code: code, v: '5.101'});
     for (let i = 0; i < batch.length; ++i) {
+
         const ownerDatum = executeResult[i];
+        if (typeof(ownerDatum) !== 'object')
+            continue;
+
+        const posts = ownerDatum.items;
+        if (!Array.isArray(posts))
+            continue;
+
         const ownerId = batch[i];
 
         let totalComments = 0;
         let earliestTimestamp = Infinity;
         let latestTimestamp = -Infinity;
-        for (const post of ownerDatum.items) {
+        for (const post of posts) {
             const isPinned = post.is_pinned;
             if (isPinned && config.ignorePinned)
                 continue;

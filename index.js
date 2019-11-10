@@ -59,6 +59,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const resolveDomainToId = async (domain) => {
         if (domain.match(/^-?\d+$/) !== null)
             return parseInt(domain);
+
+        let m = domain.match(/^.*\/(.*)$/);
+        if (m !== null)
+            domain = m[1];
+
         const resp = await session.apiRequest('utils.resolveScreenName', {
             screen_name: domain,
             v: '5.103',
@@ -230,14 +235,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         for (let i = 0; i < oids.length; ++i) {
             const oid = oids[i];
+            const stat = stats[oid];
+            if (stat === undefined)
+                continue;
 
             workConfig.logText(
                 result.length === 0
                     ? `Ищу в ${i + 1}/${oids.length}`
                     : `Ищу в ${i + 1}/${oids.length} (найдено ${result.length})`);
 
-            implicitDenominator -= ProgressEstimator.statsToExpectedCommentsCount(
-                stats[oid], timeLimit);
+            implicitDenominator -= ProgressEstimator.statsToExpectedCommentsCount(stat, timeLimit);
 
             const estimator = new ProgressEstimator();
             chartPainter.reset();
