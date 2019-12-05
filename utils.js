@@ -16,15 +16,15 @@ const htmlEntityMap = {
     '`': '&#x60;',
     '=': '&#x3D;',
 };
-export const htmlEscape = s => {
+export const htmlEscape = (s) => {
     return String(s).replace(/[&<>"'`=\/]/g, c => htmlEntityMap[c]);
 };
 
-export const parseSearchString = search => {
+export const parseSearchString = (search) => {
     const segments = search.slice(search.indexOf('?') + 1).split('&');
     const result = {};
     for (const segment of segments) {
-        const [key, value] = segment.split('=', /*limit*/ 2);
+        const [key, value] = segment.split('=', /*limit=*/2);
         if (value === undefined)
             continue;
         result[decodeURIComponent(key)] = decodeURIComponent(value);

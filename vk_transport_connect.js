@@ -4,14 +4,14 @@ import { VkApiError } from "./vk_api.js";
 const methodsByKey = {};
 const requestsByMethod = {};
 
-const doSend = request => {
+const doSend = (request) => {
     for (const key in request.callbacks)
         methodsByKey[key] = request.method;
     requestsByMethod[request.method] = request;
     connect.send(request.method, request.params);
 };
 
-connect.subscribe(event => {
+connect.subscribe((event) => {
     const { type, data } = event.detail;
     const method = methodsByKey[type];
     const request = requestsByMethod[method];
@@ -67,7 +67,7 @@ export const vkSendRequest = (method, successKey, failureKey, params) => {
     return new Promise((resolve, reject) => {
         new VkRequest(method, params)
             .on(successKey, resolve)
-            .on(failureKey, data => reject(new VkRequestError(data)))
+            .on(failureKey, (data) => reject(new VkRequestError(data)))
             .schedule();
     });
 };
@@ -99,7 +99,7 @@ export class Transport {
         } catch (err) {
             if (!(err instanceof VkRequestError))
                 throw err;
-            if (err.data.error_type === 'client_error' && err.data.error_code === 1) {
+            if (err.data.error_type === 'client_error' && err.data.error_data.error_code === 1) {
                 const reason = err.data.error_data.error_reason;
                 throw new VkApiError(reason.error_code, reason.error_msg);
             } else {

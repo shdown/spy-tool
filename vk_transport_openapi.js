@@ -6,7 +6,7 @@ export class Transport {
 
     callAPI(method, params) {
         return new Promise((resolve, reject) => {
-            VK.Api.call(method, params, result => {
+            VK.Api.call(method, params, (result) => {
                 if (result.error) {
                     reject(new VkApiError(result.error.error_code, result.error.error_msg));
                 } else {

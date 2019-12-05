@@ -6,16 +6,17 @@ import { ChartController } from './chart_ctl.js';
 import { ChartPainter } from './chart_painter.js';
 import { ProgressEstimator } from './progress_estimator.js';
 import { ProgressPainter } from './progress_painter.js';
-import { monotonicNowMillis, htmlEscape, unduplicate } from './utils.js';
+import { monotonicNowMillis, sleepMillis, htmlEscape, unduplicate } from './utils.js';
 import { StatsStorage } from './stats_storage.js';
+import { RateLimitedStorage } from './rate_limited_storage.js';
 
 const makeCallbackDispatcher = (callbacks) => {
-    return (what, arg) => {
+    return async (what, arg) => {
         const fn = callbacks[what];
         if (fn === undefined)
             console.log(`No callback for "${what}": ${JSON.stringify(arg)}`);
         else
-            fn(arg);
+            await fn(arg);
     };
 };
 
@@ -37,8 +38,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const transport = new Transport();
     const session = new VkApiSession(transport);
+    const storage = new RateLimitedStorage(
+        /*limits=*/{
+            /*stats*/s:         200,
+            /*timestamps*/t:    400,
+            /*posts*/p:         400,
+        },
+        session);
 
-    const statsStorage = new StatsStorage();
+    const statsStorage = new StatsStorage(storage);
 
     const getAccessToken = async (scope) => {
         const result = await vkSendRequest(
@@ -47,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'VKWebAppAccessTokenFailed',
             {app_id: GLOBAL_CONFIG.APP_ID, scope: scope});
 
-        const splitPermissions = s => s ? s.split(',') : [];
+        const splitPermissions = (s) => s ? s.split(',') : [];
         const isSubset = (a, b) => new Set([...a, ...b]).size === new Set(b).size;
 
         if (!isSubset(splitPermissions(scope), splitPermissions(result.scope)))
@@ -94,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const form = document.createElement('form');
     const formLog = document.createElement('div');
-    const appendInputToForm = props => {
+    const appendInputToForm = (props) => {
         const elem = document.createElement(props.tag || 'input');
         if (props.type !== undefined)
             elem.setAttribute('type', props.type);
@@ -144,16 +152,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     getSubsBtn.onclick = () => {
         getSubscriptions(userIdInput.value)
-            .then(result => {
+            .then((result) => {
                 if (result.length === 0)
                     formLog.innerHTML = `Подписок не найдено!`;
                 ownerIdsInput.value = result.join('\n');
             })
-            .catch(err => {
+            .catch((err) => {
                 formLog.innerHTML = `Ошибка: ${htmlEscape(err.name)}: ${htmlEscape(err.message)}`;
             });
         return false;
     };
+
     form.appendChild(document.createElement('hr'));
     const timeLimitInput = appendInputToForm({
         type: 'number',
@@ -167,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const oidsToGatherStats = [];
         for (const oid of oids) {
-            const stats = statsStorage.getStats(oid);
+            const stats = await statsStorage.getStats(oid);
             if (stats === undefined)
                 oidsToGatherStats.push(oid);
             else
@@ -180,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
             session: session,
             ignorePinned: resolveConfig.ignorePinned,
             callback: makeCallbackDispatcher({
-                progress: datum => {
+                progress: async (datum) => {
                     progressPainter.setRatio(datum.numerator / datum.denominator);
                 },
             }),
@@ -189,7 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         for (const oid in gatherResults) {
             const stats = gatherResults[oid];
-            statsStorage.setStats(oid, stats);
+            await statsStorage.setStats(oid, stats, /*isFake=*/true);
             result[oid] = stats;
         }
 
@@ -200,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
         workConfig.logText('Получаю токен…');
         await getAccessToken('');
 
-        session.setRateLimitCallback(reason => {
+        session.setRateLimitCallback((reason) => {
             workConfig.logText(`Умерим пыл (${reason})`);
         });
 
@@ -251,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const chartCtl = new ChartController(30, chartPainter);
 
             const callbacks = {
-                found: datum => {
+                found: async (datum) => {
                     const link = `https://vk.com/wall${oid}_${datum.postId}`;
                     result.push({
                         link: link,
@@ -259,25 +268,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     workConfig.logText(`Найдено: ${link}`);
                 },
-                infoAdd: datum => {
+                infoAdd: async (datum) => {
                     chartCtl.handleAdd(datum);
                     estimator.handleAdd(datum);
                 },
-                infoUpdate: datum => {
+                infoUpdate: async (datum) => {
                     chartCtl.handleUpdate(datum);
                     estimator.handleUpdate(datum);
                 },
-                infoFlush: _ => {
+                infoFlush: async (_) => {
                     chartCtl.handleFlush();
 
-                    const explicitNumerator = estimator.getDoneCommentsNumber();
-                    const explicitDenominator = ProgressEstimator.statsToExpectedCommentsCount(
-                        estimator.getStats(), timeLimit);
-                    const numerator = explicitNumerator + implicitNumerator;
-                    const denominator = explicitDenominator + implicitDenominator;
-                    progressPainter.setRatio(numerator / denominator);
+                    const currentStats = estimator.getStats();
+                    if (currentStats !== undefined) {
+                        const explicitNumerator = estimator.getDoneCommentsNumber();
+                        const explicitDenominator = ProgressEstimator.statsToExpectedCommentsCount(
+                            currentStats, timeLimit);
+                        const numerator = explicitNumerator + implicitNumerator;
+                        const denominator = explicitDenominator + implicitDenominator;
+                        progressPainter.setRatio(numerator / denominator);
+                    }
                 },
-                error: datum => {
+                error: async (datum) => {
                     const error = datum.error;
                     workConfig.logText(`Ошибка при проверке ${oid}_${datum.postId}: ${error.name}: ${error.message}`);
                     console.log('error callback payload:');
@@ -297,7 +309,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const commentsChecked = estimator.getDoneCommentsNumber();
             implicitNumerator += commentsChecked;
             implicitDenominator += commentsChecked;
-            statsStorage.setStats(oid, estimator.getStats());
+
+            const actualStats = estimator.getStats();
+            if (actualStats !== undefined)
+                await statsStorage.setStats(oid, stats, /*isFake=*/false);
+        }
+
+        while (statsStorage.hasSomethingToFlush()) {
+            workConfig.logText('Сохраняю результаты…');
+            await sleepMillis(200);
+            await statsStorage.flush();
         }
 
         return result;
@@ -312,13 +333,13 @@ document.addEventListener('DOMContentLoaded', () => {
             userDomain: userIdInput.value,
             publicDomains: ownerIdsInput.value
                 .split(/[,\s]/)
-                .filter(domain => domain !== ''),
+                .filter((domain) => domain !== ''),
             timeLimit: parseFloat(timeLimitInput.value) * 24 * 60 * 60,
             ignorePinned: false,
-            logText: text => {
+            logText: (text) => {
                 workingText.innerHTML = htmlEscape(text);
             },
-            logHTML: html => {
+            logHTML: (html) => {
                 workingText.innerHTML = html;
             },
         };
@@ -327,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
         body.appendChild(workingDiv);
 
         work(workConfig)
-            .then(result => {
+            .then((result) => {
                 console.log('Done');
 
                 workingDiv.remove();
@@ -351,7 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     resultDiv.appendChild(ul);
                 }
             })
-            .catch(err => {
+            .catch((err) => {
                 console.log(err);
 
                 workingDiv.remove();

@@ -29,6 +29,8 @@ export class ProgressEstimator {
     }
 
     getStats() {
+        if (this._earliestTimestamp === Infinity)
+            return undefined;
         return {
             timeSpan: this._latestTimestamp - this._earliestTimestamp,
             totalComments: this._totalTodo,

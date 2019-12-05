@@ -16,9 +16,9 @@ class Reader {
         this._globalOffset = 0;
     }
 
-    _setEOF(reason) {
+    async _setEOF(reason) {
         if (!this._eof) {
-            this._config.callback('postDiscoveryStop', reason);
+            await this._config.callback('postDiscoveryStop', reason);
             this._eof = true;
         }
     }
@@ -38,7 +38,7 @@ class Reader {
         for (const datum of result.items) {
             const isPinned = datum.is_pinned;
             if (datum.date < this._config.sinceTimestamp && !isPinned) {
-                this._setEOF('timeLimitReached');
+                await this._setEOF('timeLimitReached');
                 break;
             }
             if (isPinned && this._config.ignorePinned)
@@ -55,18 +55,18 @@ class Reader {
             };
             if (datum.from_id === this._config.uid) {
                 // TODO pass the datum to the callback
-                this._config.callback('found', {postId: datum.id, offset: -1});
+                await this._config.callback('found', {postId: datum.id, offset: -1});
                 value.offset = value.total;
             }
-            this._config.callback('infoAdd', value);
+            await this._config.callback('infoAdd', value);
             newCache.push(value);
         }
-        this._config.callback('infoFlush', null);
+        await this._config.callback('infoFlush', null);
 
         this._cache = newCache;
         this._cachePos = 0;
         if (result.items.length < MAX_POSTS)
-            this._setEOF('noNorePosts');
+            await this._setEOF('noNorePosts');
         this._globalOffset += result.items.length;
     }
 
@@ -109,7 +109,7 @@ class HotGroup {
         return this._hotArray;
     }
 
-    decreaseCurrent(amountsById) {
+    async decreaseCurrent(amountsById) {
         const newHotArray = [];
         for (let i = 0; i < this._hotArray.length; ++i) {
             const value = this._hotArray[i];
@@ -121,17 +121,17 @@ class HotGroup {
                     value.offset = value.total;
                     expellThis = true;
                 }
-                this._config.callback('infoUpdate', value);
+                await this._config.callback('infoUpdate', value);
             }
             if (!expellThis)
                 newHotArray.push(value);
         }
-        this._config.callback('infoFlush', null);
+        await this._config.callback('infoFlush', null);
         this._hotArray = newHotArray;
     }
 }
 
-const scheduleBatch = hotArray => {
+const scheduleBatch = (hotArray) => {
     const result = [];
     for (let offsetSummand = 0; ; offsetSummand += MAX_COMMENTS) {
         let pushedSomething = false;
@@ -186,7 +186,7 @@ const executeBatch = async (config, hotArray) => {
         const oldAmount = amountsById[datum.id] || 0;
 
         if (posterIds.indexOf(config.uid) !== -1) {
-            config.callback('found', {postId: datum.id, offset: datum.offset});
+            await config.callback('found', {postId: datum.id, offset: datum.offset});
             amountsById[datum.id] = Infinity;
         } else {
             amountsById[datum.id] = oldAmount + MAX_COMMENTS;
@@ -215,13 +215,13 @@ export const findPosts = async (config) => {
             } catch (err2) {
                 if (!(err2 instanceof VkApiError))
                     throw err2;
-                config.callback('error', {postId: firstValue.id, error: err2});
+                await config.callback('error', {postId: firstValue.id, error: err2});
                 // Let's just skip this one.
                 amountsById = {};
                 amountsById[firstValue.id] = Infinity;
             }
         }
-        hotGroup.decreaseCurrent(amountsById);
+        await hotGroup.decreaseCurrent(amountsById);
     }
 };
 
@@ -261,6 +261,9 @@ const gatherStatsBatch = async (config, batch, result) => {
             }
         }
 
+        if (earliestTimestamp === Infinity)
+            continue;
+
         result[ownerId] = {
             timeSpan: latestTimestamp - earliestTimestamp,
             totalComments: totalComments,
@@ -277,7 +280,7 @@ export const gatherStats = async (config) => {
         const batch = oids.slice(offset, offset + batchSize);
         await gatherStatsBatch(config, batch, result);
         offset += batchSize;
-        config.callback('progress', {
+        await config.callback('progress', {
             numerator: divCeil(offset, MAX_REQUESTS_IN_EXECUTE),
             denominator: divCeil(oids.length, MAX_REQUESTS_IN_EXECUTE),
         });
