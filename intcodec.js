@@ -3,6 +3,8 @@
 const CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_=';
 
 export const encodeInteger = (z) => {
+    if (!Number.isSafeInteger(z))
+        throw new Error(`${z} is not a safe integer`);
     let result = '';
     if (z < 0) {
         result += '-';
@@ -36,4 +38,4 @@ export const decodeInteger = (s) => {
     return negative ? -z : z;
 };
 
-export const decodeManyIntegrs = (s) => s.split(',').map(decodeInteger);
+export const decodeManyIntegers = (s) => s.split(',').map(decodeInteger);

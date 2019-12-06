@@ -22,7 +22,7 @@ export class StatsStorage {
         return this._data[ownerId];
     }
 
-    async setStats(ownerId, stats, isFake) {
+    async setStats(ownerId, stats, isApprox) {
         await this._fetchDataIfNeeded();
         this._data[ownerId] = stats;
         const entry = encodeManyIntegers([ownerId, stats.totalComments, stats.timeSpan]);

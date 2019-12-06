@@ -46,8 +46,8 @@ class Hardware {
         return result;
     }
 
-    canWrite(value) {
-        return value.length <= 1024;
+    canWrite(prefix, value) {
+        return prefix.length + value.length <= 1024;
     }
 
     async write(rawKey, value) {
@@ -128,8 +128,8 @@ class Cache {
         return ++this._timer;
     }
 
-    canWrite(value) {
-        return this._hardware.canWrite(value);
+    canWrite(prefix, value) {
+        return this._hardware.canWrite(prefix, value);
     }
 
     getCurIndex(key) {
@@ -223,7 +223,7 @@ export class RateLimitedStorage {
             this._cache.write(key, 0, prefix + value);
         } else {
             const prefix = await this._cache.read(key, index) + ';';
-            if (this._cache.canWrite(prefix + value)) {
+            if (this._cache.canWrite(prefix, value)) {
                 this._cache.write(key, index, prefix + value);
             } else {
                 const newPrefix = encodeInteger(this._cache.tick()) + ';';
@@ -256,7 +256,7 @@ export class RateLimitedStorage {
         const result = [];
         const values = await this._cache.readMany(rawKeys);
         for (const value of values) {
-            const segments = value.spit(';');
+            const segments = value.split(';');
             for (let i = 1; i < segments.length; ++i)
                 result.push(segments[i]);
         }

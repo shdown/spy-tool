@@ -8,6 +8,7 @@ import { ProgressEstimator } from './progress_estimator.js';
 import { ProgressPainter } from './progress_painter.js';
 import { monotonicNowMillis, sleepMillis, htmlEscape, unduplicate } from './utils.js';
 import { StatsStorage } from './stats_storage.js';
+import { PostsStorage } from './posts_storage.js';
 import { RateLimitedStorage } from './rate_limited_storage.js';
 
 const makeCallbackDispatcher = (callbacks) => {
@@ -40,13 +41,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const session = new VkApiSession(transport);
     const storage = new RateLimitedStorage(
         /*limits=*/{
-            /*stats*/s:         200,
-            /*timestamps*/t:    400,
-            /*posts*/p:         400,
+            /*stats*/s: 400,
+            /*posts*/p: 600,
         },
         session);
 
     const statsStorage = new StatsStorage(storage);
+    const postsStorage = new PostsStorage(storage);
 
     const getAccessToken = async (scope) => {
         const result = await vkSendRequest(
@@ -91,6 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultDiv = document.createElement('div');
 
     const workingDiv = document.createElement('div');
+    const archiveDiv = document.createElement('div');
     const workingText = document.createElement('div');
     workingText.innerHTML = '…';
     const progressPainter = new ProgressPainter();
@@ -118,6 +120,54 @@ document.addEventListener('DOMContentLoaded', () => {
         form.appendChild(elem);
         return elem;
     };
+
+    const showArchive = async () => {
+        form.remove();
+        body.appendChild(archiveDiv);
+
+        const waitingText = document.createElement('div');
+        waitingText.innerHTML = htmlEscape('Загрузка архива…');
+        archiveDiv.appendChild(waitingText);
+
+        await getAccessToken('');
+
+        const userIds = await postsStorage.getUsers();
+        for (const userId of userIds) {
+            const ul = document.createElement('ul');
+            for (const datum of await postsStorage.getUserPosts(userId)) {
+                const a = document.createElement('a');
+                const link = `https://vk.com/wall${datum.ownerId}_${datum.postId}`;
+                a.setAttribute('href', link);
+                a.setAttribute('rel', 'noopener noreferrer');
+                a.setAttribute('target', '_blank');
+                a.innerHTML = htmlEscape(link);
+                const li = document.createElement('li');
+                li.appendChild(a);
+                ul.appendChild(li);
+            }
+            archiveDiv.append(`ID ${userId}:`);
+            archiveDiv.appendChild(ul);
+        }
+
+        waitingText.remove();
+        if (userIds.length === 0) {
+            archiveDiv.append('Архив пуст.');
+        }
+    };
+
+    const archiveBtn = appendInputToForm({
+        type: 'button',
+        value: 'Архив',
+    });
+    archiveBtn.onclick = () => {
+        showArchive()
+            .then(() => {})
+            .catch((err) => {
+                formLog.innerHTML = `Ошибка: ${htmlEscape(err.name)}: ${htmlEscape(err.message)}`;
+            });
+        return false;
+    };
+    form.appendChild(document.createElement('hr'));
 
     const userIdInput = appendInputToForm({
         type: 'text',
@@ -198,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         for (const oid in gatherResults) {
             const stats = gatherResults[oid];
-            await statsStorage.setStats(oid, stats, /*isFake=*/true);
+            await statsStorage.setStats(parseInt(oid), stats, /*isApprox=*/true);
             result[oid] = stats;
         }
 
@@ -262,6 +312,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const callbacks = {
                 found: async (datum) => {
                     const link = `https://vk.com/wall${oid}_${datum.postId}`;
+                    await postsStorage.addPost(oid, {
+                        ownerId: oid,
+                        postId: datum.postId,
+                        commentId: -1,
+                    });
                     result.push({
                         link: link,
                         offset: datum.offset,
@@ -312,7 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const actualStats = estimator.getStats();
             if (actualStats !== undefined)
-                await statsStorage.setStats(oid, stats, /*isFake=*/false);
+                await statsStorage.setStats(parseInt(oid), actualStats, /*isApprox=*/false);
         }
 
         while (statsStorage.hasSomethingToFlush()) {
@@ -326,6 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     form.appendChild(document.createElement('hr'));
     appendInputToForm({type: 'submit'});
+
     form.appendChild(document.createElement('hr'));
     form.appendChild(formLog);
     form.onsubmit = () => {
