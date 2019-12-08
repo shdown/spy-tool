@@ -28,12 +28,4 @@ export class StatsStorage {
         const entry = encodeManyIntegers([ownerId, stats.totalComments, stats.timeSpan]);
         await this._storage.write('s',  entry);
     }
-
-    hasSomethingToFlush() {
-        return this._storage.hasSomethingToFlush();
-    }
-
-    async flush() {
-        await this._storage.flush();
-    }
 }

@@ -89,6 +89,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const resolveIdToLink = (id) => {
+        if (id < 0)
+            return `https://vk.com/public${-id}`;
+        else
+            return `https://vk.com/id${id}`;
+    };
+
+    const createAnchor = (link) => {
+        const a = document.createElement('a');
+        a.setAttribute('href', link);
+        a.setAttribute('rel', 'noopener noreferrer');
+        a.setAttribute('target', '_blank');
+        a.innerHTML = htmlEscape(link);
+        return a;
+    };
+
     const resultDiv = document.createElement('div');
 
     const workingDiv = document.createElement('div');
@@ -133,19 +149,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const userIds = await postsStorage.getUsers();
         for (const userId of userIds) {
+            const caption = document.createElement('div');
+            caption.append('Комментарии ');
+            caption.appendChild(createAnchor(resolveIdToLink(userId)));
+            caption.append(':');
+
             const ul = document.createElement('ul');
             for (const datum of await postsStorage.getUserPosts(userId)) {
-                const a = document.createElement('a');
-                const link = `https://vk.com/wall${datum.ownerId}_${datum.postId}`;
-                a.setAttribute('href', link);
-                a.setAttribute('rel', 'noopener noreferrer');
-                a.setAttribute('target', '_blank');
-                a.innerHTML = htmlEscape(link);
+                const a = createAnchor(`https://vk.com/wall${datum.ownerId}_${datum.postId}`);
                 const li = document.createElement('li');
                 li.appendChild(a);
                 ul.appendChild(li);
             }
-            archiveDiv.append(`ID ${userId}:`);
+
+            archiveDiv.appendChild(caption);
             archiveDiv.appendChild(ul);
         }
 
@@ -312,14 +329,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const callbacks = {
                 found: async (datum) => {
                     const link = `https://vk.com/wall${oid}_${datum.postId}`;
-                    await postsStorage.addPost(oid, {
-                        ownerId: oid,
-                        postId: datum.postId,
-                        commentId: -1,
-                    });
+                    const isNew = await postsStorage.addPost(
+                        uid,
+                        {
+                            ownerId: oid,
+                            postId: datum.postId,
+                            commentId: -1,
+                        }
+                    );
                     result.push({
                         link: link,
                         offset: datum.offset,
+                        isNew: isNew,
                     });
                     workConfig.logText(`Найдено: ${link}`);
                 },
@@ -370,10 +391,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 await statsStorage.setStats(parseInt(oid), actualStats, /*isApprox=*/false);
         }
 
-        while (statsStorage.hasSomethingToFlush()) {
+        while (storage.hasSomethingToFlush()) {
             workConfig.logText('Сохраняю результаты…');
             await sleepMillis(200);
-            await statsStorage.flush();
+            await storage.flush();
         }
 
         return result;
@@ -384,6 +405,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     form.appendChild(document.createElement('hr'));
     form.appendChild(formLog);
+
+    formLog.innerHTML = (
+        'Привет! Это — приложение для поиска постов или комментариев определённого пользователя.' +
+        '<br/>' +
+        'Оно использует метод <code>execute()</code>, который позволяет проверить 25 постов за один запрос.');
+
     form.onsubmit = () => {
         const workConfig = {
             userDomain: userIdInput.value,
@@ -405,8 +432,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         work(workConfig)
             .then((result) => {
-                console.log('Done');
-
                 workingDiv.remove();
                 body.appendChild(resultDiv);
 
@@ -416,13 +441,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     resultDiv.innerHTML = 'Найдены посты:<br/>';
                     const ul = document.createElement('ul');
                     for (const datum of result) {
-                        const a = document.createElement('a');
-                        a.setAttribute('href', datum.link);
-                        a.setAttribute('rel', 'noopener noreferrer');
-                        a.setAttribute('target', '_blank');
-                        a.innerHTML = htmlEscape(datum.link);
+                        const a = createAnchor(datum.link);
                         const li = document.createElement('li');
+
+                        const gespan = document.createElement('span');
+                        if (datum.isNew) {
+                            gespan.style = 'font-weight: bold;';
+                            gespan.innerHTML = ' (новый)';
+                        } else {
+                            gespan.style = 'color: #999;';
+                            gespan.innerHTML = ' (старый)';
+                        }
+
                         li.appendChild(a);
+                        li.appendChild(gespan);
                         ul.appendChild(li);
                     }
                     resultDiv.appendChild(ul);

@@ -24,7 +24,7 @@ connect.subscribe((event) => {
         return;
     }
 
-    if (request.next)
+    if (request.next !== null)
         doSend(request.next);
     else
         delete requestsByMethod[method];
@@ -46,7 +46,7 @@ export class VkRequest {
 
     schedule() {
         const ongoing = requestsByMethod[this.method];
-        if (ongoing) {
+        if (ongoing !== undefined) {
             this.next = ongoing.next;
             ongoing.next = this;
         } else {

@@ -26,7 +26,9 @@ export class PostsStorage {
 
     async getUsers() {
         await this._fetchDataIfNeeded();
-        return [...this._data.keys()];
+        const keysCopy = [...this._data.keys()];
+        keysCopy.reverse();
+        return keysCopy;
     }
 
     async getUserPosts(userId) {
