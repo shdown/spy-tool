@@ -31,3 +31,12 @@ export const parseSearchString = (search) => {
     }
     return result;
 }
+
+export const createAnchor = (link) => {
+    const a = document.createElement('a');
+    a.setAttribute('href', link);
+    a.setAttribute('rel', 'noopener noreferrer');
+    a.setAttribute('target', '_blank');
+    a.innerHTML = htmlEscape(link);
+    return a;
+};

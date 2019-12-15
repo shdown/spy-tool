@@ -44,8 +44,8 @@ export class VkApiSession {
         await sleepMillis(ms);
     }
 
-    cancel() {
-        this._cancelFlag = true;
+    setCancelFlag(flag) {
+        this._cancelFlag = flag;
     }
 
     setRateLimitCallback(fn) {

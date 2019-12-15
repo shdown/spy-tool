@@ -1,15 +1,29 @@
-import { VkRequest, vkSendRequest, Transport } from './vk_transport_connect.js';
-import { VkApiSession } from './vk_api.js';
+import { sleepMillis, htmlEscape, unduplicate } from './utils.js';
 import { GLOBAL_CONFIG } from './global_config.js';
+
+import { VkRequest, vkSendRequest, Transport } from './vk_transport_connect.js';
+import { VkApiSession, VkApiCancellation } from './vk_api.js';
+
 import { findPosts, gatherStats } from './algo.js';
+
 import { ChartController } from './chart_ctl.js';
 import { ChartPainter } from './chart_painter.js';
+
 import { ProgressEstimator } from './progress_estimator.js';
 import { ProgressPainter } from './progress_painter.js';
-import { monotonicNowMillis, sleepMillis, htmlEscape, unduplicate } from './utils.js';
+
+import { RateLimitedStorage } from './rate_limited_storage.js';
 import { StatsStorage } from './stats_storage.js';
 import { PostsStorage } from './posts_storage.js';
-import { RateLimitedStorage } from './rate_limited_storage.js';
+
+import { ViewManager } from './view_mgr.js';
+
+import { LoadingView } from './loading_view.js';
+import { FormView } from './form_view.js';
+import { ProgressView } from './progress_view.js';
+import { ResultsView } from './results_view.js';
+import { ArchiveView } from './archive_view.js';
+
 
 const makeCallbackDispatcher = (callbacks) => {
     return async (what, arg) => {
@@ -21,9 +35,23 @@ const makeCallbackDispatcher = (callbacks) => {
     };
 };
 
-document.addEventListener('DOMContentLoaded', () => {
-    new VkRequest('VKWebAppInit', {}).schedule();
+const requestAccessToken = async (scope) => {
+    const result = await vkSendRequest(
+        'VKWebAppGetAuthToken',
+        'VKWebAppAccessTokenReceived',
+        'VKWebAppAccessTokenFailed',
+        {app_id: GLOBAL_CONFIG.APP_ID, scope: scope});
 
+    const splitPermissions = (s) => s ? s.split(',') : [];
+    const isSubset = (a, b) => new Set([...a, ...b]).size === new Set(b).size;
+
+    if (!isSubset(splitPermissions(scope), splitPermissions(result.scope)))
+        throw new Error(`Requested scope "${scope}", got "${result.scope}"`);
+
+    return result.access_token;
+};
+
+const installGlobalErrorHandler = () => {
     const rootDiv = document.getElementById('root');
     window.onerror = (errorMsg, url, lineNum, columnNum, errorObj) => {
         const span = document.createElement('span');
@@ -34,36 +62,36 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(errorObj);
         return false;
     };
+};
 
+const asyncMain = async () => {
+    installGlobalErrorHandler();
     const body = document.getElementsByTagName('body')[0];
+    const viewManager = new ViewManager(body);
+
+    const loadingView = new LoadingView();
+    viewManager.show(loadingView);
 
     const transport = new Transport();
+    transport.setAccessToken(await requestAccessToken(/*scope=*/''));
     const session = new VkApiSession(transport);
+
     const storage = new RateLimitedStorage(
         /*limits=*/{
             /*stats*/s: 400,
             /*posts*/p: 600,
         },
         session);
-
     const statsStorage = new StatsStorage(storage);
     const postsStorage = new PostsStorage(storage);
 
-    const getAccessToken = async (scope) => {
-        const result = await vkSendRequest(
-            'VKWebAppGetAuthToken',
-            'VKWebAppAccessTokenReceived',
-            'VKWebAppAccessTokenFailed',
-            {app_id: GLOBAL_CONFIG.APP_ID, scope: scope});
+    const progressPainter = new ProgressPainter();
+    const chartPainter = new ChartPainter();
 
-        const splitPermissions = (s) => s ? s.split(',') : [];
-        const isSubset = (a, b) => new Set([...a, ...b]).size === new Set(b).size;
-
-        if (!isSubset(splitPermissions(scope), splitPermissions(result.scope)))
-            throw new Error(`Requested scope "${scope}", got "${result.scope}"`);
-
-        transport.setAccessToken(result.access_token);
-    };
+    const progressView = new ProgressView(progressPainter, chartPainter);
+    const resultsView = new ResultsView();
+    const formView = new FormView();
+    const archiveView = new ArchiveView();
 
     const resolveDomainToId = async (domain) => {
         if (domain.match(/^-?\d+$/) !== null)
@@ -89,116 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const resolveIdToLink = (id) => {
-        if (id < 0)
-            return `https://vk.com/public${-id}`;
-        else
-            return `https://vk.com/id${id}`;
-    };
-
-    const createAnchor = (link) => {
-        const a = document.createElement('a');
-        a.setAttribute('href', link);
-        a.setAttribute('rel', 'noopener noreferrer');
-        a.setAttribute('target', '_blank');
-        a.innerHTML = htmlEscape(link);
-        return a;
-    };
-
-    const resultDiv = document.createElement('div');
-
-    const workingDiv = document.createElement('div');
-    const archiveDiv = document.createElement('div');
-    const workingText = document.createElement('div');
-    workingText.innerHTML = '…';
-    const progressPainter = new ProgressPainter();
-    progressPainter.element.style = 'display: block; width: 100%;';
-    const chartPainter = new ChartPainter();
-    workingDiv.appendChild(progressPainter.element);
-    workingDiv.appendChild(chartPainter.element);
-    workingDiv.appendChild(workingText);
-
-    const form = document.createElement('form');
-    const formLog = document.createElement('div');
-    const appendInputToForm = (props) => {
-        const elem = document.createElement(props.tag || 'input');
-        if (props.type !== undefined)
-            elem.setAttribute('type', props.type);
-        if (props.required)
-            elem.setAttribute('required', '1');
-        if (props.value !== undefined)
-            elem.setAttribute('value', props.value);
-        if (props.label !== undefined) {
-            const text = document.createElement('div');
-            text.innerHTML = props.label;
-            form.appendChild(text);
-        }
-        form.appendChild(elem);
-        return elem;
-    };
-
-    const showArchive = async () => {
-        form.remove();
-        body.appendChild(archiveDiv);
-
-        const waitingText = document.createElement('div');
-        waitingText.innerHTML = htmlEscape('Загрузка архива…');
-        archiveDiv.appendChild(waitingText);
-
-        await getAccessToken('');
-
-        const userIds = await postsStorage.getUsers();
-        for (const userId of userIds) {
-            const caption = document.createElement('div');
-            caption.append('Комментарии ');
-            caption.appendChild(createAnchor(resolveIdToLink(userId)));
-            caption.append(':');
-
-            const ul = document.createElement('ul');
-            for (const datum of await postsStorage.getUserPosts(userId)) {
-                const a = createAnchor(`https://vk.com/wall${datum.ownerId}_${datum.postId}`);
-                const li = document.createElement('li');
-                li.appendChild(a);
-                ul.appendChild(li);
-            }
-
-            archiveDiv.appendChild(caption);
-            archiveDiv.appendChild(ul);
-        }
-
-        waitingText.remove();
-        if (userIds.length === 0) {
-            archiveDiv.append('Архив пуст.');
-        }
-    };
-
-    const archiveBtn = appendInputToForm({
-        type: 'button',
-        value: 'Архив',
-    });
-    archiveBtn.onclick = () => {
-        showArchive()
-            .then(() => {})
-            .catch((err) => {
-                formLog.innerHTML = `Ошибка: ${htmlEscape(err.name)}: ${htmlEscape(err.message)}`;
-            });
-        return false;
-    };
-    form.appendChild(document.createElement('hr'));
-
-    const userIdInput = appendInputToForm({
-        type: 'text',
-        label: 'ID пользователя или адрес страницы (например, <b>1</b> или <b>durov</b>):',
-        required: true,
-    });
-    form.appendChild(document.createElement('hr'));
-    const ownerIdsInput = appendInputToForm({
-        tag: 'textarea',
-        label: 'Список пабликов, ID или адреса страниц; разделяйте запятыми, пробелами или переводами строки:',
-        required: true,
-    });
     const getSubscriptions = async (userDomain) => {
-        await getAccessToken('');
         session.setRateLimitCallback(null);
         const uid = await resolveDomainToId(userDomain);
         const resp = await session.apiRequest('users.getSubscriptions', {
@@ -212,31 +131,6 @@ document.addEventListener('DOMContentLoaded', () => {
             result.push(-id);
         return result;
     };
-    form.appendChild(document.createElement('br'));
-    const getSubsBtn = appendInputToForm({
-        type: 'button',
-        value: 'Заполнить подписками пользователя',
-    });
-    getSubsBtn.onclick = () => {
-        getSubscriptions(userIdInput.value)
-            .then((result) => {
-                if (result.length === 0)
-                    formLog.innerHTML = `Подписок не найдено!`;
-                ownerIdsInput.value = result.join('\n');
-            })
-            .catch((err) => {
-                formLog.innerHTML = `Ошибка: ${htmlEscape(err.name)}: ${htmlEscape(err.message)}`;
-            });
-        return false;
-    };
-
-    form.appendChild(document.createElement('hr'));
-    const timeLimitInput = appendInputToForm({
-        type: 'number',
-        label: 'Ограничение по времени, в днях:',
-        value: '30',
-        required: true,
-    });
 
     const resolveStatsFor = async (oids, resolveConfig) => {
         const result = {};
@@ -274,7 +168,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const work = async (workConfig) => {
         workConfig.logText('Получаю токен…');
-        await getAccessToken('');
 
         session.setRateLimitCallback((reason) => {
             workConfig.logText(`Умерим пыл (${reason})`);
@@ -400,76 +293,83 @@ document.addEventListener('DOMContentLoaded', () => {
         return result;
     };
 
-    form.appendChild(document.createElement('hr'));
-    appendInputToForm({type: 'submit'});
-
-    form.appendChild(document.createElement('hr'));
-    form.appendChild(formLog);
-
-    formLog.innerHTML = (
-        'Привет! Это — приложение для поиска постов или комментариев определённого пользователя.' +
-        '<br/>' +
-        'Оно использует метод <code>execute()</code>, который позволяет проверить 25 постов за один запрос.');
-
-    form.onsubmit = () => {
-        const workConfig = {
-            userDomain: userIdInput.value,
-            publicDomains: ownerIdsInput.value
-                .split(/[,\s]/)
-                .filter((domain) => domain !== ''),
-            timeLimit: parseFloat(timeLimitInput.value) * 24 * 60 * 60,
-            ignorePinned: false,
-            logText: (text) => {
-                workingText.innerHTML = htmlEscape(text);
-            },
-            logHTML: (html) => {
-                workingText.innerHTML = html;
-            },
-        };
-
-        form.remove();
-        body.appendChild(workingDiv);
-
-        work(workConfig)
-            .then((result) => {
-                workingDiv.remove();
-                body.appendChild(resultDiv);
-
-                if (result.length === 0) {
-                    resultDiv.innerHTML = 'Ничего не найдено! 😢';
-                } else {
-                    resultDiv.innerHTML = 'Найдены посты:<br/>';
-                    const ul = document.createElement('ul');
-                    for (const datum of result) {
-                        const a = createAnchor(datum.link);
-                        const li = document.createElement('li');
-
-                        const gespan = document.createElement('span');
-                        if (datum.isNew) {
-                            gespan.style = 'font-weight: bold;';
-                            gespan.innerHTML = ' (новый)';
-                        } else {
-                            gespan.style = 'color: #999;';
-                            gespan.innerHTML = ' (старый)';
-                        }
-
-                        li.appendChild(a);
-                        li.appendChild(gespan);
-                        ul.appendChild(li);
-                    }
-                    resultDiv.appendChild(ul);
-                }
-            })
-            .catch((err) => {
-                console.log(err);
-
-                workingDiv.remove();
-                body.appendChild(resultDiv);
-
-                resultDiv.innerHTML = `Произошла ошибка: ${htmlEscape(err.name)}: ${htmlEscape(err.message)}`;
-            });
-        return false;
+    const readArchive = async () => {
+        const result = new Map();
+        const userIds = await postsStorage.getUsers();
+        for (const userId of userIds)
+            result.set(userId, await postsStorage.getUserPosts(userId));
+        return result;
     };
 
-    body.appendChild(form);
+    formView.subscribe('get-subs', () => {
+        getSubscriptions(formView.userDomain)
+            .then((data) => {
+                if (data.length === 0)
+                    formView.setLogContent('Подписок не найдено!');
+                formView.ownerDomains = data;
+            }).catch((err) => {
+                formView.setLogContent(htmlEscape(`Ошибка: ${err.name}: ${err.message}`));
+            });
+    });
+    formView.subscribe('submit', () => {
+        viewManager.show(progressView);
+
+        const workConfig = {
+            userDomain: formView.userDomain,
+            publicDomains: formView.ownerDomains,
+            timeLimit: formView.timeLimitSeconds,
+            ignorePinned: false,
+            logText: (text) => {
+                progressView.setLogContent(htmlEscape(text));
+            },
+        };
+        work(workConfig)
+            .then((results) => {
+                session.setCancelFlag(false);
+
+                viewManager.show(resultsView);
+                resultsView.setResults(results);
+            }).catch((err) => {
+                session.setCancelFlag(false);
+
+                if (err instanceof VkApiCancellation) {
+                    viewManager.show(formView);
+                } else {
+                    viewManager.show(resultsView);
+                    resultsView.setError(`Ошибка: ${err.name}: ${err.message}`);
+                }
+            });
+    });
+
+    formView.subscribe('open-archive', () => {
+        viewManager.show(loadingView);
+
+        readArchive()
+            .then((data) => {
+                viewManager.show(archiveView);
+                archiveView.setData(data);
+            }).catch((err) => {
+                viewManager.show(formView);
+                formView.setLogContent(htmlEscape(`Ошибка: ${err.name}: ${err.message}`));
+            });
+    });
+    archiveView.subscribe('back', () => {
+        viewManager.show(formView);
+    });
+    resultsView.subscribe('back', () => {
+        viewManager.show(formView);
+    });
+    progressView.subscribe('cancel', () => {
+        session.setCancelFlag(true);
+    });
+
+    viewManager.show(formView);
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    new VkRequest('VKWebAppInit', {}).schedule();
+    asyncMain()
+        .catch((err) => {
+            throw err;
+        });
 });

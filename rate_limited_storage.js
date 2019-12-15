@@ -28,12 +28,19 @@ import { encodeInteger, decodeInteger } from './intcodec.js';
 //       there is no room for the new value in the storage, an unspecified number of values are
 //       popped _from the front_ of the ordered collection.
 //
-//       This function may or may not actually flush the data to the storage; use
-//       'hasSomethingToFlush()' and 'flush()' methods to query the state of the cache and try to
-//       flush it, respectively.
+//       (!) This function may or may not actually flush the data to the storage; use
+//           'hasSomethingToFlush()' and 'flush()' methods to query the state of the cache and try
+//           to flush it, respectively.
 //
 //   * async read(key)
 //       Returns the ordered collection at the key 'key' as an array of strings.
+//
+//   * async clear()
+//       Clears the entire storage (all the ordered collections).
+//
+//       (!) This function may or may not actually flush the data to the storage; use
+//           'hasSomethingToFlush()' and 'flush()' methods to query the state of the cache and try
+//           to flush it, respectively.
 //
 //   * hasSomethingToFlush()
 //       Returns 'true' if there are any unflushed entries in the cache, 'false' otherwise.
@@ -43,8 +50,8 @@ import { encodeInteger, decodeInteger } from './intcodec.js';
 //
 // A key can only contain ASCII Latin letters (upper- or lowercase), and can not be longer than 90
 // bytes.
-// A value can only contain the printable subset of ASCII, except for the semicolon (';') character,
-// and can not be longer than 512 bytes.
+// A value can only contain the printable subset of ASCII without the semicolon (';') character, and
+// can not be longer than 512 bytes.
 // If any of those requirements is unmet, the behavior is undefined.
 
 const MIN_DELAY_MILLIS = 3600;
@@ -339,15 +346,20 @@ export class RateLimitedStorage {
         return result;
     }
 
-    async clear(key) {
+    async clear() {
         if (this._timer === null)
             await this._fetchMetadata();
 
-        const rawKeys = this._getRawKeys(key);
-        for (const rawKey of rawKeys)
-            this._cache.write(rawKey, '');
+        for (const key in this._keyToMetadata)
+            for (const rawKey of this._getRawKeys(key))
+                this._cache.write(rawKey, '');
 
-        await this._fetchMetadata();
+        // Reset the metadata.
+        const builder = new MetadataBuilder(this._perKeyLimits);
+        const result = builder.finalize();
+        this._keyToMetadata = result.keyToMetadata;
+        this._timer = result.timer;
+
         await this.flush();
     }
 
