@@ -4,6 +4,11 @@ export const divCeil = (a, b) => Math.ceil(a / b);
 export const clearArray = (array) => {
     array.splice(0, array.length);
 };
+export const isSubset = (a, b) => {
+    const unionSet = new Set([...a, ...b]);
+    const bSet = new Set(b);
+    return unionSet.size === bSet.size;
+};
 export const unduplicate = (array) => [...new Set(array)];
 
 const htmlEntityMap = {

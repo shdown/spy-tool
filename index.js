@@ -1,7 +1,7 @@
 import { sleepMillis, htmlEscape, unduplicate } from './utils.js';
-import { GLOBAL_CONFIG } from './global_config.js';
+import { requestAccessToken } from './access_token.js';
 
-import { VkRequest, vkSendRequest, Transport } from './vk_transport_connect.js';
+import { VkRequest, Transport } from './vk_transport_connect.js';
 import { VkApiSession, VkApiCancellation } from './vk_api.js';
 
 import { findPosts, gatherStats } from './algo.js';
@@ -35,39 +35,10 @@ const makeCallbackDispatcher = (callbacks) => {
     };
 };
 
-const requestAccessToken = async (scope) => {
-    const result = await vkSendRequest(
-        'VKWebAppGetAuthToken',
-        'VKWebAppAccessTokenReceived',
-        'VKWebAppAccessTokenFailed',
-        {app_id: GLOBAL_CONFIG.APP_ID, scope: scope});
-
-    const splitPermissions = (s) => s ? s.split(',') : [];
-    const isSubset = (a, b) => new Set([...a, ...b]).size === new Set(b).size;
-
-    if (!isSubset(splitPermissions(scope), splitPermissions(result.scope)))
-        throw new Error(`Requested scope "${scope}", got "${result.scope}"`);
-
-    return result.access_token;
-};
-
-const installGlobalErrorHandler = () => {
-    const rootDiv = document.getElementById('root');
-    window.onerror = (errorMsg, url, lineNum, columnNum, errorObj) => {
-        const span = document.createElement('span');
-        span.innerHTML = htmlEscape(`Ошибка: ${errorMsg} @ ${url}:${lineNum}:${columnNum}`);
-        span.style = 'color: red;';
-        rootDiv.appendChild(span);
-        console.log('Error object:');
-        console.log(errorObj);
-        return false;
-    };
-};
 
 const asyncMain = async () => {
-    installGlobalErrorHandler();
-    const body = document.getElementsByTagName('body')[0];
-    const viewManager = new ViewManager(body);
+    const rootDiv = document.getElementById('root');
+    const viewManager = new ViewManager(rootDiv);
 
     const loadingView = new LoadingView();
     viewManager.show(loadingView);
@@ -118,7 +89,6 @@ const asyncMain = async () => {
     };
 
     const getSubscriptions = async (userDomain) => {
-        session.setRateLimitCallback(null);
         const uid = await resolveDomainToId(userDomain);
         const resp = await session.apiRequest('users.getSubscriptions', {
             user_id: uid,
@@ -326,11 +296,13 @@ const asyncMain = async () => {
         work(workConfig)
             .then((results) => {
                 session.setCancelFlag(false);
+                session.setRateLimitCallback(null);
 
                 viewManager.show(resultsView);
                 resultsView.setResults(results);
             }).catch((err) => {
                 session.setCancelFlag(false);
+                session.setRateLimitCallback(null);
 
                 if (err instanceof VkApiCancellation) {
                     viewManager.show(formView);
@@ -366,8 +338,26 @@ const asyncMain = async () => {
     viewManager.show(formView);
 };
 
+
+const installGlobalErrorHandler = () => {
+    const rootDiv = document.getElementById('root');
+    window.onerror = (errorMsg, url, lineNum, columnNum, errorObj) => {
+        const text = document.createElement('div');
+        text.innerHTML = htmlEscape(`Ошибка: ${errorMsg} @ ${url}:${lineNum}:${columnNum}`);
+        text.style = 'color: red;';
+        rootDiv.prepend(text);
+        console.log('Error object:');
+        console.log(errorObj);
+        return false;
+    };
+};
+
+
 document.addEventListener('DOMContentLoaded', () => {
+    installGlobalErrorHandler();
+
     new VkRequest('VKWebAppInit', {}).schedule();
+
     asyncMain()
         .catch((err) => {
             throw err;

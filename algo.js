@@ -161,7 +161,7 @@ const foolProofExecute = async (config, params) => {
 
 const executeBatch = async (config, hotArray) => {
     const batch = scheduleBatch(hotArray);
-    let code = `var i = 0, r = [];`
+    let code = `var i = 0, r = [];`;
     code += `var d = [${batch.map(datum => datum.id).join(',')}];`;
     code += `var o = [${batch.map(datum => datum.offset).join(',')}];`
     code += `while (i < ${batch.length}) {`;
