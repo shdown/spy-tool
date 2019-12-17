@@ -111,8 +111,7 @@ class HotGroup {
 
     async decreaseCurrent(amountsById) {
         const newHotArray = [];
-        for (let i = 0; i < this._hotArray.length; ++i) {
-            const value = this._hotArray[i];
+        for (const value of this._hotArray) {
             const amount = amountsById[value.id];
             let expellThis = false;
             if (amount !== undefined && amount !== 0) {
