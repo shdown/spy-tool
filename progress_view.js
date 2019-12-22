@@ -1,17 +1,21 @@
 import { View } from "./view.js";
+import { ChartView } from "./chart_view.js";
 import { __ } from "./gettext.js";
 
+const PROGRESS_MAX = 1000;
+
 export class ProgressView extends View {
-    constructor(progress_painter, chart_painter) {
+    constructor() {
         super();
         this._div = document.createElement('div');
-        this._progress_painter = progress_painter;
-        this._chart_painter = chart_painter;
+ 
+        this._progress = document.createElement('progress');
+        this._progress.setAttribute('max', String(PROGRESS_MAX));
+        this._progress.style = 'display: block; width: 100%;';
+        this._div.appendChild(this._progress);
 
-        this._progress_painter.element.style = 'display: block; width: 100%;';
-        this._div.appendChild(this._progress_painter.element);
-
-        this._div.appendChild(this._chart_painter.element);
+        this._chartView = new ChartView();
+        this._div.appendChild(this._chartView.element);
 
         this._bottom = document.createElement('div');
         this._cancelBtn = document.createElement('input');
@@ -26,6 +30,7 @@ export class ProgressView extends View {
 
         this._bottom.appendChild(this._cancelBtn);
         this._bottom.appendChild(this._log);
+        
         this._div.appendChild(this._bottom);
     }
 
@@ -33,12 +38,22 @@ export class ProgressView extends View {
         return this._div;
     }
 
+    get chartView() {
+        return this._chartView;
+    }
+
+    setProgress(ratio) {
+        const v = isNaN(ratio) ? '' : String(Math.round(ratio * PROGRESS_MAX));
+        this._progress.setAttribute('value', v);
+    }
+
     mount() {
+        this._chartView.mount();
     }
 
     unmount() {
-        this._progress_painter.reset();
-        this._chart_painter.reset();
+        this.setProgress(NaN);
+        this._chartView.unmount();
         this._log.innerHTML = '';
     }
 

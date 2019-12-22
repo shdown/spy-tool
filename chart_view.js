@@ -1,4 +1,5 @@
 import { Chart } from "chart.js";
+import { View } from "./view.js";
 import { monotonicNowMillis, clearArray } from "./utils.js";
 
 const BG_COLOR = 'rgba(230,230,230,0.3)';
@@ -22,8 +23,9 @@ const DEFAULT_PARAMS = {
 const MIN_INTERVAL_MILLIS = 600;
 const UPDATE_DURATION_MILLIS = 350;
 
-export class ChartPainter {
+export class ChartView extends View {
     constructor() {
+        super();
         this._canvas = document.createElement('canvas');
         const data = {
             labels: [],
@@ -125,5 +127,12 @@ export class ChartPainter {
         clearArray(this._chart.data.datasets[1].backgroundColor);
         clearArray(this._fgIndices);
         this._repaint(20);
+    }
+
+    mount() {
+    }
+
+    unmount() {
+        this.reset();
     }
 }

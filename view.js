@@ -3,13 +3,17 @@ export class View {
         this._signalHandlers = {};
     }
 
-    subscribe(signal, fn) {
-        this._signalHandlers[signal] = fn;
+    subscribe(signal, f) {
+        let fs = this._signalHandlers[signal];
+        if (fs === undefined)
+            fs = this._signalHandlers[signal] = [];
+        fs.push(f);
     }
 
     _emitSignal(signal) {
-        const fn = this._signalHandlers[signal];
-        if (fn !== undefined)
-            fn();
+        const fs = this._signalHandlers[signal];
+        if (fs !== undefined)
+            for (const f of fs)
+                f();
     }
 }

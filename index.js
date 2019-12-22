@@ -9,10 +9,7 @@ import { VkApiSession, VkApiCancellation } from './vk_api.js';
 import { findPosts, gatherStats } from './algo.js';
 
 import { ChartController } from './chart_ctl.js';
-import { ChartPainter } from './chart_painter.js';
-
 import { ProgressEstimator } from './progress_estimator.js';
-import { ProgressPainter } from './progress_painter.js';
 
 import { RateLimitedStorage } from './rate_limited_storage.js';
 import { StatsStorage } from './stats_storage.js';
@@ -60,10 +57,7 @@ const asyncMain = async () => {
     const statsStorage = new StatsStorage(storage);
     const postsStorage = new PostsStorage(storage);
 
-    const progressPainter = new ProgressPainter();
-    const chartPainter = new ChartPainter();
-
-    const progressView = new ProgressView(progressPainter, chartPainter);
+    const progressView = new ProgressView();
     const resultsView = new ResultsView();
     const formView = new FormView();
     const archiveView = new ArchiveView();
@@ -118,18 +112,21 @@ const asyncMain = async () => {
                 result[oid] = stats;
         }
 
-        progressPainter.setRatio(0);
+        resolveConfig.logText(__('Gathering statistics…'));
+        progressView.setProgress(0);
         const gatherResults = await gatherStats({
             oids: oidsToGatherStats,
             session: session,
             ignorePinned: resolveConfig.ignorePinned,
             callback: makeCallbackDispatcher({
                 progress: async (datum) => {
-                    progressPainter.setRatio(datum.numerator / datum.denominator);
+                    progressView.setProgress(datum.numerator / datum.denominator);
                 },
             }),
         });
-        progressPainter.reset();
+
+        resolveConfig.logText(__('Saving results…'));
+        progressView.setProgress(NaN);
 
         for (const oid in gatherResults) {
             const stats = gatherResults[oid];
@@ -160,9 +157,9 @@ const asyncMain = async () => {
             oids.push(await resolveDomainToId(domain));
         oids = unduplicate(oids);
 
-        workConfig.logText(__('Gathering statistics…'));
         const stats = await resolveStatsFor(oids, {
             ignorePinned: workConfig.ignorePinned,
+            logText: workConfig.logText,
         });
 
         let implicitNumerator = 0;
@@ -188,8 +185,7 @@ const asyncMain = async () => {
             implicitDenominator -= ProgressEstimator.statsToExpectedCommentsCount(stat, timeLimit);
 
             const estimator = new ProgressEstimator();
-            chartPainter.reset();
-            const chartCtl = new ChartController(30, chartPainter);
+            const chartCtl = new ChartController(30, progressView.chartView);
 
             const callbacks = {
                 found: async (datum) => {
@@ -227,7 +223,7 @@ const asyncMain = async () => {
                             currentStats, timeLimit);
                         const numerator = explicitNumerator + implicitNumerator;
                         const denominator = explicitDenominator + implicitDenominator;
-                        progressPainter.setRatio(numerator / denominator);
+                        progressView.setProgress(numerator / denominator);
                     }
                 },
                 error: async (datum) => {

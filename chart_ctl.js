@@ -1,6 +1,7 @@
 export class ChartController {
-    constructor(maxBarsNum, painter) {
-        this._painter = painter;
+    constructor(maxBarsNum, chartView) {
+        this._chartView = chartView;
+        this._chartView.reset();
         this._bars = Array(maxBarsNum).fill(null);
         this._bumptimes = Array(maxBarsNum).fill(0);
         this._timer = 1;
@@ -10,11 +11,11 @@ export class ChartController {
         const copy = {...value};
         const old = this._bars[i];
         if (old === null) {
-            this._painter.addBar(i, copy);
+            this._chartView.addBar(i, copy);
         } else if (old.id === value.id) {
-            this._painter.setBarValue(i, copy);
+            this._chartView.setBarValue(i, copy);
         } else {
-            this._painter.alterBar(i, copy);
+            this._chartView.alterBar(i, copy);
         }
         this._bars[i] = copy;
         this._bumptimes[i] = this._timer++;
@@ -57,6 +58,6 @@ export class ChartController {
     }
 
     handleFlush() {
-        this._painter.flush();
+        this._chartView.flush();
     }
 }
