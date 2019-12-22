@@ -1,10 +1,11 @@
 import { View } from "./view.js";
+import { __ } from "./gettext.js";
 
 export class LoadingView extends View {
     constructor() {
         super();
         this._div = document.createElement('div');
-        this._div.innerHTML = 'Загрузка…';
+        this._div.append(__('Loading…'));
     }
 
     get element() {

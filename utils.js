@@ -42,6 +42,6 @@ export const createAnchor = (link) => {
     a.setAttribute('href', link);
     a.setAttribute('rel', 'noopener noreferrer');
     a.setAttribute('target', '_blank');
-    a.innerHTML = htmlEscape(link);
+    a.append(link);
     return a;
 };

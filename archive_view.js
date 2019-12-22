@@ -1,22 +1,7 @@
 import { View } from "./view.js";
+import { vkEntityUrl, vkPostUrl } from "./vk_url.js";
 import { createAnchor } from "./utils.js";
-
-const entityIdToLink = (id) => {
-    if (id < 0)
-        return `https://vk.com/public${-id}`;
-    else
-        return `https://vk.com/id${id}`;
-};
-
-const postDatumToLink = (datum) => {
-    return `https://vk.com/wall${datum.ownerId}_${datum.postId}`;
-};
-
-const makeSpanWithHtml = (html) => {
-    const span = document.createElement('span');
-    span.innerHTML = html;
-    return span;
-};
+import { __ } from "./gettext.js";
 
 export class ArchiveView extends View {
     constructor() {
@@ -24,7 +9,7 @@ export class ArchiveView extends View {
         this._div = document.createElement('div');
         this._backBtn = document.createElement('input');
         this._backBtn.setAttribute('type', 'button');
-        this._backBtn.setAttribute('value', 'Назад');
+        this._backBtn.setAttribute('value', __('Back'));
         this._backBtn.onclick = () => {
             super._emitSignal('back');
             return false;
@@ -43,19 +28,20 @@ export class ArchiveView extends View {
     setData(data) {
         const inner = document.createElement('div');
         if (data.size === 0) {
-            inner.innerHTML = '<hr/>Архив пуст.';
+            inner.appendChild(document.createElement('hr'));
+            inner.append(__('Archive is empty.'));
         } else {
-            for (const [entityId, posts] of data) {
+            for (const [entityId, postData] of data) {
                 inner.appendChild(document.createElement('hr'));
 
-                inner.appendChild(makeSpanWithHtml('Комментарии '));
-                inner.appendChild(createAnchor(entityIdToLink(entityId)));
-                inner.appendChild(makeSpanWithHtml(':<br/>'));
+                inner.appendChild(createAnchor(vkEntityUrl(entityId)));
+                inner.append(':');
+                inner.appendChild(document.createElement('br'));
 
                 const ul = document.createElement('ul');
-                for (const post of posts) {
+                for (const postDatum of postData) {
                     const li = document.createElement('li');
-                    const a = createAnchor(postDatumToLink(post));
+                    const a = createAnchor(vkPostUrl(postDatum.ownerId, postDatum.postId));
                     li.appendChild(a);
                     ul.appendChild(li);
                 }

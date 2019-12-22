@@ -1,5 +1,6 @@
 import { View } from "./view.js";
-import { createAnchor, htmlEscape } from "./utils.js";
+import { createAnchor } from "./utils.js";
+import { __ } from "./gettext.js";
 
 export class ResultsView extends View {
     constructor() {
@@ -7,7 +8,7 @@ export class ResultsView extends View {
         this._div = document.createElement('div');
         this._backBtn = document.createElement('input');
         this._backBtn.setAttribute('type', 'button');
-        this._backBtn.setAttribute('value', 'Назад');
+        this._backBtn.setAttribute('value', __('Back'));
         this._backBtn.onclick = () => {
             super._emitSignal('back');
             return false;
@@ -31,9 +32,10 @@ export class ResultsView extends View {
     setResults(data) {
         const inner = document.createElement('div');
         if (data.length === 0) {
-            inner.innerHTML = 'Ничего не найдено! 😢';
+            inner.append(__('Nothing found! 😢'));
         } else {
-            inner.innerHTML = 'Найдены посты:<br/>';
+            inner.append(__('Posts founds:'));
+            inner.appendChild(document.createElement('br'));
             const ul = document.createElement('ul');
             for (const datum of data) {
                 const li = document.createElement('li');
@@ -41,10 +43,10 @@ export class ResultsView extends View {
                 const span = document.createElement('span');
                 if (datum.isNew) {
                     span.style = 'font-weight: bold;';
-                    span.innerHTML = ' (новый)';
+                    span.append(__(' (new)'));
                 } else {
                     span.style = 'color: #999;';
-                    span.innerHTML = ' (старый)';
+                    span.append(__(' (old)'));
                 }
                 li.appendChild(a);
                 li.appendChild(span);
@@ -57,7 +59,7 @@ export class ResultsView extends View {
 
     setError(text) {
         const inner = document.createElement('div');
-        inner.innerHTML = htmlEscape(text);
+        inner.append(text);
         this._setInner(inner);
     }
 

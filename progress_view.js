@@ -1,4 +1,5 @@
 import { View } from "./view.js";
+import { __ } from "./gettext.js";
 
 export class ProgressView extends View {
     constructor(progress_painter, chart_painter) {
@@ -15,7 +16,7 @@ export class ProgressView extends View {
         this._bottom = document.createElement('div');
         this._cancelBtn = document.createElement('input');
         this._cancelBtn.setAttribute('type', 'button');
-        this._cancelBtn.setAttribute('value', 'Отмена');
+        this._cancelBtn.setAttribute('value', __('Cancel'));
         this._cancelBtn.onclick = () => {
             super._emitSignal('cancel');
             return false;
@@ -41,7 +42,8 @@ export class ProgressView extends View {
         this._log.innerHTML = '';
     }
 
-    setLogContent(html) {
-        this._log.innerHTML = html;
+    setLogText(text) {
+        this._log.innerHTML = '';
+        this._log.append(text);
     }
 }

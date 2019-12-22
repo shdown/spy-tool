@@ -5,8 +5,6 @@ const MAX_POSTS = 100;
 const MAX_COMMENTS = 100;
 const MAX_REQUESTS_IN_EXECUTE = 25;
 
-const isEPERM = (err) => err.code === 7;
-
 class Reader {
     constructor(config) {
         this._config = config;

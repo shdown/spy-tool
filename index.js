@@ -1,4 +1,6 @@
-import { sleepMillis, htmlEscape, unduplicate } from './utils.js';
+import { __ } from './gettext.js';
+
+import { sleepMillis, unduplicate } from './utils.js';
 import { requestAccessToken } from './access_token.js';
 
 import { VkRequest, Transport } from './vk_transport_connect.js';
@@ -23,6 +25,8 @@ import { FormView } from './form_view.js';
 import { ProgressView } from './progress_view.js';
 import { ResultsView } from './results_view.js';
 import { ArchiveView } from './archive_view.js';
+
+import { vkPostUrl } from "./vk_url.js";
 
 
 const makeCallbackDispatcher = (callbacks) => {
@@ -137,28 +141,26 @@ const asyncMain = async () => {
     };
 
     const work = async (workConfig) => {
-        workConfig.logText('Получаю токен…');
-
         session.setRateLimitCallback((reason) => {
-            workConfig.logText(`Умерим пыл (${reason})`);
+            workConfig.logText(__('We are being too fast ({0})', reason));
         });
 
-        workConfig.logText('Получаю время сервера…');
+        workConfig.logText(__('Getting server time…'));
         const serverTime = await session.apiRequest('utils.getServerTime', {v: '5.101'});
 
         const timeLimit = workConfig.timeLimit;
         const sinceTimestamp = serverTime - timeLimit;
 
-        workConfig.logText('Проверяю пользователя…');
+        workConfig.logText(__('Checking user…'));
         const uid = await resolveDomainToId(workConfig.userDomain);
 
-        workConfig.logText('Проверяю список пабликов…');
+        workConfig.logText(__('Checking public list…'));
         let oids = [];
         for (const domain of workConfig.publicDomains)
             oids.push(await resolveDomainToId(domain));
         oids = unduplicate(oids);
 
-        workConfig.logText('Собираю статистику…');
+        workConfig.logText(__('Gathering statistics…'));
         const stats = await resolveStatsFor(oids, {
             ignorePinned: workConfig.ignorePinned,
         });
@@ -178,10 +180,10 @@ const asyncMain = async () => {
             if (stat === undefined)
                 continue;
 
-            workConfig.logText(
-                result.length === 0
-                    ? `Ищу в ${i + 1}/${oids.length}`
-                    : `Ищу в ${i + 1}/${oids.length} (найдено ${result.length})`);
+            let statusText = __('Searching in {0}/{1}…', `${i + 1}`, `${oids.length}`);
+            if (result.length !== 0)
+                statusText += __(' (found {0})', `${result.length}`);
+            workConfig.logText(statusText);
 
             implicitDenominator -= ProgressEstimator.statsToExpectedCommentsCount(stat, timeLimit);
 
@@ -191,7 +193,7 @@ const asyncMain = async () => {
 
             const callbacks = {
                 found: async (datum) => {
-                    const link = `https://vk.com/wall${oid}_${datum.postId}`;
+                    const link = vkPostUrl(oid, datum.postId);
                     const isNew = await postsStorage.addPost(
                         uid,
                         {
@@ -205,7 +207,7 @@ const asyncMain = async () => {
                         offset: datum.offset,
                         isNew: isNew,
                     });
-                    workConfig.logText(`Найдено: ${link}`);
+                    workConfig.logText(__('Found: {0}', link));
                 },
                 infoAdd: async (datum) => {
                     chartCtl.handleAdd(datum);
@@ -230,7 +232,9 @@ const asyncMain = async () => {
                 },
                 error: async (datum) => {
                     const error = datum.error;
-                    workConfig.logText(`Ошибка при проверке ${oid}_${datum.postId}: ${error.name}: ${error.message}`);
+                    workConfig.logText(__('Error checking {0}: {1}',
+                                          `${oid}_${datum.postId}`,
+                                          `${error.name}: ${error.message}`));
                     console.log('error callback payload:');
                     console.log(error);
                 },
@@ -255,7 +259,7 @@ const asyncMain = async () => {
         }
 
         while (storage.hasSomethingToFlush()) {
-            workConfig.logText('Сохраняю результаты…');
+            workConfig.logText(__('Saving results…'));
             await sleepMillis(200);
             await storage.flush();
         }
@@ -275,10 +279,10 @@ const asyncMain = async () => {
         getSubscriptions(formView.userDomain)
             .then((data) => {
                 if (data.length === 0)
-                    formView.setLogContent('Подписок не найдено!');
+                    formView.setLogText(__('No subscriptions found!'));
                 formView.ownerDomains = data;
             }).catch((err) => {
-                formView.setLogContent(htmlEscape(`Ошибка: ${err.name}: ${err.message}`));
+                formView.setLogText(__('Error: {0}', `${err.name}: ${err.message}`));
             });
     });
     formView.subscribe('submit', () => {
@@ -290,7 +294,7 @@ const asyncMain = async () => {
             timeLimit: formView.timeLimitSeconds,
             ignorePinned: false,
             logText: (text) => {
-                progressView.setLogContent(htmlEscape(text));
+                progressView.setLogText(text);
             },
         };
         work(workConfig)
@@ -308,7 +312,7 @@ const asyncMain = async () => {
                     viewManager.show(formView);
                 } else {
                     viewManager.show(resultsView);
-                    resultsView.setError(`Ошибка: ${err.name}: ${err.message}`);
+                    resultsView.setError(__('Error: {0}', `${err.name}: ${err.message}`));
                 }
             });
     });
@@ -322,7 +326,7 @@ const asyncMain = async () => {
                 archiveView.setData(data);
             }).catch((err) => {
                 viewManager.show(formView);
-                formView.setLogContent(htmlEscape(`Ошибка: ${err.name}: ${err.message}`));
+                formView.setLogText(__('Error: {0}', `${err.name}: ${err.message}`));
             });
     });
     archiveView.subscribe('back', () => {
@@ -343,7 +347,7 @@ const installGlobalErrorHandler = () => {
     const rootDiv = document.getElementById('root');
     window.onerror = (errorMsg, url, lineNum, columnNum, errorObj) => {
         const text = document.createElement('div');
-        text.innerHTML = htmlEscape(`Ошибка: ${errorMsg} @ ${url}:${lineNum}:${columnNum}`);
+        text.append(`Error: ${errorMsg} @ ${url}:${lineNum}:${columnNum}`);
         text.style = 'color: red;';
         rootDiv.prepend(text);
         console.log('Error object:');
