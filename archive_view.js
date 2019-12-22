@@ -34,6 +34,7 @@ export class ArchiveView extends View {
             for (const [entityId, postData] of data) {
                 inner.appendChild(document.createElement('hr'));
 
+                inner.append(__('Comments by '));
                 inner.appendChild(createAnchor(vkEntityUrl(entityId)));
                 inner.append(':');
                 inner.appendChild(document.createElement('br'));

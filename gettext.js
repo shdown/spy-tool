@@ -3,6 +3,7 @@ const translations = {
         'Loading…': 'Загрузка…',
         'Back': 'Назад',
         'Archive is empty.': 'Архив пуст.',
+        'Comments by ': 'Комментарии ',
         'User ID or handle (for example, “1” or “durov”):': 'ID пользователя или адрес страницы (например, “1” или “durov”):',
         'Public list (IDs or handles); separate with commas, spaces or line feeds:': 'Список пабликов (ID или адреса страниц); разделяйте запятыми, пробелами или переводами строки:',
         'Fill with user subscriptions': 'Заполнить подписками пользователя',
