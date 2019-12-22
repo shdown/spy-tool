@@ -223,17 +223,34 @@ export const findPosts = async (config) => {
 };
 
 const gatherStatsBatch = async (config, batch, result) => {
-    let code = `var i = 0, r = [];`;
-    code += `var d = [${batch.join(',')}];`;
-    code += `while (i < ${batch.length}) {`;
-    code += ` r.push(API.wall.get({owner_id: d[i], offset: 0, count: ${MAX_POSTS}}));`;
-    code += ` i = i + 1;`;
-    code += `}`;
-    code += `return r;`;
+    const COUNTS = [100, 50, 25, 13, 7, 4, 2];
+    let executeResult;
+    for (let i = 0;;) {
+        let code = `var i = 0, r = [];`;
+        code += `var d = [${batch.join(',')}];`;
+        code += `while (i < ${batch.length}) {`;
+        code += ` r.push(API.wall.get({owner_id: d[i], offset: 0, count: ${COUNTS[i]}}));`;
+        code += ` i = i + 1;`;
+        code += `}`;
+        code += `return r;`;
 
-    const executeResult = await foolProofExecute(config, {code: code, v: '5.101'});
+        try {
+            executeResult = await foolProofExecute(config, {code: code, v: '5.101'});
+            break;
+        } catch (err) {
+            if (!(err instanceof VkApiError))
+                throw err;
+            if (err.code !== 13)
+                throw err;
+            await config.callback('error', {error: err});
+            ++i;
+            if (i === COUNTS.length)
+                throw err;
+            continue;
+        }
+    }
+
     for (let i = 0; i < batch.length; ++i) {
-
         const ownerDatum = executeResult[i];
         if (typeof(ownerDatum) !== 'object')
             continue;

@@ -122,6 +122,11 @@ const asyncMain = async () => {
                 progress: async (datum) => {
                     progressView.setProgress(datum.numerator / datum.denominator);
                 },
+                error: async (datum) => {
+                    const error = datum.error;
+                    resolveConfig.logText(__('Error gathering statistics: {0}',
+                                             `${error.name}: ${error.message}`));
+                },
             }),
         });
 
