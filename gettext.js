@@ -17,6 +17,7 @@ const translations = {
         'Checking user…': 'Проверяю пользователя…',
         'Checking public list…': 'Проверяю список пабликов…',
         'Gathering statistics…': 'Собираю статистику…',
+        'Error gathering statistics: {0}': 'Ошибка при сборе статистики: {0}',
         'Searching in {0}/{1}…': 'Ищу в {0}/{1}…',
         '  (found {0})': ' (найдено {0})',
         'Found: {0}': 'Найдено: {0}',
