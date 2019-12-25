@@ -56,6 +56,9 @@ import { encodeInteger, decodeInteger } from './intcodec.js';
 
 const MIN_DELAY_MILLIS = 3600;
 
+// Maximum request parameter length.
+const PARAM_MAX = 1024;
+
 // Must be a power of two.
 const READ_CACHE_SIZE = 32;
 
@@ -88,25 +91,32 @@ class Hardware {
     }
 
     async readMany(rawKeys) {
-        if (rawKeys.length === 0)
-            return [];
-
         const rawKeyToIndex = {};
         for (let i = 0; i < rawKeys.length; ++i)
             rawKeyToIndex[rawKeys[i]] = i;
 
-        const data = await this._session.apiRequest('storage.get', {
-            keys: rawKeys.join(','),
-            v: '5.103',
-        });
         const result = Array(rawKeys.length);
-        for (const datum of data)
-            result[rawKeyToIndex[datum.key]] = datum.value;
+
+        let i = 0;
+        while (i !== rawKeys.length) {
+            let j = i;
+            for (let len = 0;
+                 len <= PARAM_MAX && j !== rawKeys.length;
+                 len += 1 + rawKeys[j].length, ++j)
+            {}
+            const data = await this._session.apiRequest('storage.get', {
+                keys: rawKeys.slice(i, j).join(','),
+                v: '5.103',
+            });
+            for (const datum of data)
+                result[rawKeyToIndex[datum.key]] = datum.value;
+            i = j;
+        }
         return result;
     }
 
     canWrite(prefix, value) {
-        return prefix.length + value.length <= 1024;
+        return prefix.length + value.length <= PARAM_MAX;
     }
 
     async write(rawKey, value) {

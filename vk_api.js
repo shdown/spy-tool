@@ -104,8 +104,8 @@ export class VkApiSession {
         }
     }
 
-    async apiExecuteRaw(params) {
-        const result = await this.apiRequest('execute', params, /*raw=*/true);
+    async apiExecuteRaw(params, forwardErrors = undefined) {
+        const result = await this.apiRequest('execute', params, /*raw=*/true, forwardErrors);
         const errors = result.execute_errors || [];
         return {
             response: result.response,
