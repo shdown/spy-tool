@@ -112,7 +112,7 @@ const asyncMain = async () => {
                 result[oid] = stats;
         }
 
-        resolveConfig.logText(__('Gathering statistics…'));
+        progressView.setLogText(__('Gathering statistics…'));
         progressView.setProgress(0);
         const gatherResults = await gatherStats({
             oids: oidsToGatherStats,
@@ -124,13 +124,13 @@ const asyncMain = async () => {
                 },
                 error: async (datum) => {
                     const error = datum.error;
-                    resolveConfig.logText(__('Error gathering statistics: {0}',
-                                             `${error.name}: ${error.message}`));
+                    progressView.setLogText(__('Error gathering statistics: {0}',
+                                               `${error.name}: ${error.message}`));
                 },
             }),
         });
 
-        resolveConfig.logText(__('Saving results…'));
+        progressView.setLogText(__('Saving results…'));
         progressView.setProgress(NaN);
 
         for (const oid in gatherResults) {
@@ -144,19 +144,19 @@ const asyncMain = async () => {
 
     const work = async (workConfig) => {
         session.setRateLimitCallback((reason) => {
-            workConfig.logText(__('We are being too fast ({0})', reason));
+            progressView.setLogText(__('We are being too fast ({0})', reason));
         });
 
-        workConfig.logText(__('Getting server time…'));
+        progressView.setLogText(__('Getting server time…'));
         const serverTime = await session.apiRequest('utils.getServerTime', {v: '5.101'});
 
         const timeLimit = workConfig.timeLimit;
         const sinceTimestamp = serverTime - timeLimit;
 
-        workConfig.logText(__('Checking user…'));
+        progressView.setLogText(__('Checking user…'));
         const uid = await resolveDomainToId(workConfig.userDomain);
 
-        workConfig.logText(__('Checking public list…'));
+        progressView.setLogText(__('Checking public list…'));
         let oids = [];
         for (const domain of workConfig.publicDomains)
             oids.push(await resolveDomainToId(domain));
@@ -164,7 +164,6 @@ const asyncMain = async () => {
 
         const stats = await resolveStatsFor(oids, {
             ignorePinned: workConfig.ignorePinned,
-            logText: workConfig.logText,
         });
 
         let implicitNumerator = 0;
@@ -185,7 +184,7 @@ const asyncMain = async () => {
             let statusText = __('Searching in {0}/{1}…', `${i + 1}`, `${oids.length}`);
             if (result.length !== 0)
                 statusText += __(' (found {0})', `${result.length}`);
-            workConfig.logText(statusText);
+            progressView.setLogText(statusText);
 
             implicitDenominator -= ProgressEstimator.statsToExpectedCommentsCount(stat, timeLimit);
 
@@ -208,7 +207,7 @@ const asyncMain = async () => {
                         offset: datum.offset,
                         isNew: isNew,
                     });
-                    workConfig.logText(__('Found: {0}', link));
+                    progressView.setLogText(__('Found: {0}', link));
                 },
                 infoAdd: async (datum) => {
                     chartCtl.handleAdd(datum);
@@ -233,9 +232,9 @@ const asyncMain = async () => {
                 },
                 error: async (datum) => {
                     const error = datum.error;
-                    workConfig.logText(__('Error checking {0}: {1}',
-                                          `${oid}_${datum.postId}`,
-                                          `${error.name}: ${error.message}`));
+                    progressView.setLogText(__('Error checking {0}: {1}',
+                                               `${oid}_${datum.postId}`,
+                                               `${error.name}: ${error.message}`));
                     console.log('error callback payload:');
                     console.log(error);
                 },
@@ -260,7 +259,7 @@ const asyncMain = async () => {
         }
 
         while (storage.hasSomethingToFlush()) {
-            workConfig.logText(__('Saving results…'));
+            progressView.setLogText(__('Saving results…'));
             await sleepMillis(200);
             await storage.flush();
         }
@@ -294,9 +293,6 @@ const asyncMain = async () => {
             publicDomains: formView.ownerDomains,
             timeLimit: formView.timeLimitSeconds,
             ignorePinned: false,
-            logText: (text) => {
-                progressView.setLogText(text);
-            },
         };
         work(workConfig)
             .then((results) => {
