@@ -42,6 +42,8 @@ export class PostsStorage {
             const [ownerId, postId, commentId] = setValue.split(',').map(x => parseInt(x));
             result.push({ownerId: ownerId, postId: postId, commentId: commentId});
         }
+
+        result.reverse();
         return result;
     }
 
