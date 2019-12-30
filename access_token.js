@@ -9,6 +9,7 @@ const splitPermissions = (s) => {
 export class AccessTokenError extends Error {
     constructor(requestedScope, gotScope) {
         super(`Requested scope '${requestedScope}', got '${gotScope}'`);
+        this.name = 'AccessTokenError';
     }
 }
 
@@ -20,7 +21,7 @@ export const requestAccessToken = async (scope) => {
         {app_id: GLOBAL_CONFIG.APP_ID, scope: scope});
 
     if (!isSubset(splitPermissions(scope), splitPermissions(result.scope)))
-        throw AccessTokenError(scope, result.scope);
+        throw new AccessTokenError(scope, result.scope);
 
     return result.access_token;
 };

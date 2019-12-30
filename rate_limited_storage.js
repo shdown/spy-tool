@@ -275,7 +275,10 @@ export class RateLimitedStorage {
         this._timer = null;
     }
 
-    async _fetchMetadata() {
+    async _fetchMetadataIfNeeded() {
+        if (this._timer !== null)
+            return;
+
         const rawKeys = await this._hardware.readKeys();
         const values = await this._hardware.readMany(rawKeys);
 
@@ -317,8 +320,7 @@ export class RateLimitedStorage {
     }
 
     async write(key, value) {
-        if (this._timer === null)
-            await this._fetchMetadata();
+        await this._fetchMetadataIfNeeded();
 
         const metadata = this._keyToMetadata[key];
         const {index, prefix} = await this._chooseBucket(key, value, metadata);
@@ -344,8 +346,7 @@ export class RateLimitedStorage {
     }
 
     async read(key) {
-        if (this._timer === null)
-            await this._fetchMetadata();
+        await this._fetchMetadataIfNeeded();
 
         const rawKeys = this._getRawKeys(key);
         const values = await this._cache.readMany(rawKeys);
@@ -359,8 +360,7 @@ export class RateLimitedStorage {
     }
 
     async clear() {
-        if (this._timer === null)
-            await this._fetchMetadata();
+        await this._fetchMetadataIfNeeded();
 
         for (const key in this._keyToMetadata)
             for (const rawKey of this._getRawKeys(key))
