@@ -8,7 +8,7 @@ export class ProgressView extends View {
     constructor() {
         super();
         this._div = document.createElement('div');
- 
+
         this._progress = document.createElement('progress');
         this._progress.setAttribute('max', String(PROGRESS_MAX));
         this._progress.style = 'display: block; width: 100%;';
@@ -30,7 +30,7 @@ export class ProgressView extends View {
 
         this._bottom.appendChild(this._cancelBtn);
         this._bottom.appendChild(this._log);
-        
+
         this._div.appendChild(this._bottom);
     }
 
