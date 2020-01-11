@@ -1,3 +1,5 @@
+import { isStatsValid } from "./stats_utils.js";
+
 export class ProgressEstimator {
     constructor() {
         this._offsets = {};
@@ -29,12 +31,11 @@ export class ProgressEstimator {
     }
 
     getStats() {
-        if (this._earliestTimestamp === Infinity)
-            return undefined;
-        return {
+        const stats = {
             timeSpan: this._latestTimestamp - this._earliestTimestamp,
             totalComments: this._totalTodo,
         };
+        return isStatsValid(stats) ? stats : undefined;
     }
 
     getDoneCommentsNumber() {

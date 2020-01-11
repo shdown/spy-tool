@@ -1,5 +1,6 @@
 import { VkApiError } from "./vk_api.js";
 import { divCeil } from "./utils.js";
+import { isStatsValid } from "./stats_utils.js";
 
 const MAX_POSTS = 100;
 const MAX_COMMENTS = 100;
@@ -222,6 +223,8 @@ export const findPosts = async (config) => {
     }
 };
 
+//-------------------------------------------------------------------------------------------------
+
 const gatherStatsBatch = async (config, batch, result) => {
     let executeResult = undefined;
     for (let count = MAX_COMMENTS; count > 1; count >>= 1) {
@@ -273,15 +276,14 @@ const gatherStatsBatch = async (config, batch, result) => {
             }
         }
 
-        if (earliestTimestamp === Infinity)
-            continue;
-
-        result[ownerId] = {
+        const stats = {
             timeSpan: latestTimestamp - earliestTimestamp,
             totalComments: totalComments,
         };
+        if (isStatsValid(stats))
+            result[ownerId] = stats;
     }
-}
+};
 
 export const gatherStats = async (config) => {
     const result = {};

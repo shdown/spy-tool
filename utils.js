@@ -35,7 +35,7 @@ export const parseSearchString = (search) => {
         result[decodeURIComponent(key)] = decodeURIComponent(value);
     }
     return result;
-}
+};
 
 export const createAnchor = (link) => {
     const a = document.createElement('a');
