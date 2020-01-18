@@ -1,0 +1,26 @@
+body {
+    background-color: #ffffff;
+    color: #050505;
+}
+
+fieldset {
+    border-left: 0px;
+    border-right: 0px;
+    border-top: 0px;
+    border-bottom: 1px solid #999;
+    padding-top: 0.6em;
+    padding-bottom: 0.6em;
+}
+
+.fv-input-label {
+    display: block;
+}
+
+.fv-input-note {
+    font-size: smaller;
+    color: #888;
+}
+
+.fv-form-log-area {
+    margin-top: 0.7em;
+}

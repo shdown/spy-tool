@@ -1,6 +1,6 @@
 import { __ } from './gettext.js';
 
-import { sleepMillis, unduplicate } from './utils.js';
+import { sleepMillis, unduplicate, fromHtml, htmlEscape } from './utils.js';
 import { requestAccessToken } from './access_token.js';
 
 import { VkRequest, Transport } from './vk_transport_connect.js';
@@ -279,10 +279,14 @@ const asyncMain = async () => {
         getSubscriptions(formView.userDomain)
             .then((data) => {
                 if (data.length === 0)
-                    formView.setLogText(__('No subscriptions found!'));
+                    formView.setLogText(
+                        __('No subscriptions found!'),
+                        /*tone=*/'warning');
                 formView.ownerDomains = data;
             }).catch((err) => {
-                formView.setLogText(__('Error: {0}', `${err.name}: ${err.message}`));
+                formView.setLogText(
+                    __('Error: {0}', `${err.name}: ${err.message}`),
+                    /*tone=*/'error');
             });
     });
     formView.subscribe('submit', () => {
@@ -323,7 +327,9 @@ const asyncMain = async () => {
                 archiveView.setData(data);
             }).catch((err) => {
                 viewManager.show(formView);
-                formView.setLogText(__('Error: {0}', `${err.name}: ${err.message}`));
+                formView.setLogText(
+                    __('Error: {0}', `${err.name}: ${err.message}`),
+                    /*tone=*/'error');
             });
     });
     archiveView.subscribe('back', () => {
@@ -343,10 +349,10 @@ const asyncMain = async () => {
 const installGlobalErrorHandler = () => {
     const rootDiv = document.getElementById('root');
     window.onerror = (errorMsg, url, lineNum, columnNum, errorObj) => {
-        const text = document.createElement('div');
-        text.append(`Error: ${errorMsg} @ ${url}:${lineNum}:${columnNum}`);
-        text.style = 'color: red;';
-        rootDiv.prepend(text);
+        rootDiv.prepend(fromHtml(`
+<div class="error">
+  ${htmlEscape(`Error: ${errorMsg} @ ${url}:${lineNum}:${columnNum}`)}
+</div>`));
         console.log('Error object:');
         console.log(errorObj);
         return false;

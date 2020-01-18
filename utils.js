@@ -25,6 +25,12 @@ export const htmlEscape = (s) => {
     return String(s).replace(/[&<>"'`=\/]/g, c => htmlEntityMap[c]);
 };
 
+export const fromHtml = (html) => {
+    const tmpl = document.createElement('template');
+    tmpl.innerHTML = html;
+    return tmpl.content.firstChild;
+};
+
 export const parseSearchString = (search) => {
     const segments = search.slice(search.indexOf('?') + 1).split('&');
     const result = {};
