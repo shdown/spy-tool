@@ -115,7 +115,7 @@ export class FormView extends View {
             this._timeLimitInput = createInput({
                 container: fieldSet,
                 what: 'tl',
-                label: __('Time limits, days:'),
+                label: __('Time limit, days:'),
                 extraAttributes: {
                     type: 'number',
                     value: '30',
@@ -181,10 +181,10 @@ export class FormView extends View {
     mount() {
         this._log.innerHTML = '';
         this._log.append(
-            __('Hello! This app can find posts made by a specific user.'));
+            __('Hello! This app can find comments left by a specific user.'));
         this._log.append(document.createElement('br'));
         this._log.append(
-            __('It uses the execute() method, which allows checking 25 posts per request'));
+            __('It uses the “execute()” method, which allows checking 25 posts per request.'));
     }
 
     unmount() {

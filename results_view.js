@@ -34,7 +34,7 @@ export class ResultsView extends View {
         if (data.length === 0) {
             inner.append(__('Nothing found! 😢'));
         } else {
-            inner.append(__('Posts founds:'));
+            inner.append(__('Posts found:'));
             inner.appendChild(document.createElement('br'));
             const ul = document.createElement('ul');
             for (const datum of data) {
