@@ -275,21 +275,46 @@ const asyncMain = async () => {
         return result;
     };
 
+    let opInProgress = false;
+
     formView.subscribe('get-subs', () => {
+
+        if (opInProgress) {
+            formView.setLogText(
+                __('Another operation is in progress — please wait!'),
+                /*tone=*/'error');
+            return;
+        }
+        opInProgress = true;
+
         getSubscriptions(formView.userDomain)
             .then((data) => {
+                opInProgress = false;
+
                 if (data.length === 0)
                     formView.setLogText(
                         __('No subscriptions found!'),
                         /*tone=*/'warning');
                 formView.ownerDomains = data;
+
             }).catch((err) => {
+                opInProgress = false;
+
                 formView.setLogText(
                     __('Error: {0}', `${err.name}: ${err.message}`),
                     /*tone=*/'error');
             });
     });
+
     formView.subscribe('submit', () => {
+
+        if (opInProgress) {
+            formView.setLogText(
+                __('Another operation is in progress — please wait!'),
+                /*tone=*/'error');
+            return;
+        }
+
         viewManager.show(progressView);
 
         const workConfig = {
