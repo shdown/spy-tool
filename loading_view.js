@@ -1,5 +1,4 @@
 import { View } from "./view.js";
-import { fromHtml, htmlEscape } from "./utils.js";
 import { __ } from "./gettext.js";
 
 export class LoadingView extends View {

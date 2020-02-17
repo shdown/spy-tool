@@ -22,7 +22,7 @@ const htmlEntityMap = {
     '=': '&#x3D;',
 };
 export const htmlEscape = (s) => {
-    return String(s).replace(/[&<>"'`=\/]/g, c => htmlEntityMap[c]);
+    return String(s).replace(/[&<>"'`=/]/g, c => htmlEntityMap[c]);
 };
 
 export const fromHtml = (html) => {

@@ -161,7 +161,7 @@ const executeBatch = async (config, hotArray) => {
     const batch = scheduleBatch(hotArray);
     let code = `var i = 0, r = [];`;
     code += `var d = [${batch.map(datum => datum.id).join(',')}];`;
-    code += `var o = [${batch.map(datum => datum.offset).join(',')}];`
+    code += `var o = [${batch.map(datum => datum.offset).join(',')}];`;
     code += `while (i < ${batch.length}) {`;
     code += ` r.push(API.wall.getComments({`;
     code += `  owner_id: ${config.oid}, post_id: d[i], count: ${MAX_COMMENTS},`;

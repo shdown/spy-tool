@@ -217,7 +217,7 @@ const asyncMain = async () => {
                     chartCtl.handleUpdate(datum);
                     estimator.handleUpdate(datum);
                 },
-                infoFlush: async (_) => {
+                infoFlush: async () => {
                     chartCtl.handleFlush();
 
                     const currentStats = estimator.getStats();
