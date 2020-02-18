@@ -124,8 +124,9 @@ const asyncMain = async () => {
                 },
                 error: async (datum) => {
                     const error = datum.error;
-                    progressView.setLogText(__('Error gathering statistics: {0}',
-                                               `${error.name}: ${error.message}`));
+                    progressView.setLogText(
+                        __('Error gathering statistics: {0}',
+                           `${error.name}: ${error.message}`));
                 },
             }),
         });
@@ -232,9 +233,10 @@ const asyncMain = async () => {
                 },
                 error: async (datum) => {
                     const error = datum.error;
-                    progressView.setLogText(__('Error checking {0}: {1}',
-                                               `${oid}_${datum.postId}`,
-                                               `${error.name}: ${error.message}`));
+                    progressView.setLogText(
+                        __('Error checking {0}: {1}',
+                           `${oid}_${datum.postId}`,
+                           `${error.name}: ${error.message}`));
                     console.log('error callback payload:');
                     console.log(error);
                 },

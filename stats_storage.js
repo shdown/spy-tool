@@ -1,4 +1,5 @@
 import { encodeManyIntegers, decodeManyIntegers } from './intcodec.js';
+import { isStatsValid } from './stats_utils.js';
 
 export class StatsStorage {
     constructor(storage) {
@@ -13,7 +14,10 @@ export class StatsStorage {
         const entries = await this._storage.read('s');
         for (const entry of entries) {
             const [ownerId, totalComments, timeSpan] = decodeManyIntegers(entry);
-            this._data[ownerId] = {totalComments: totalComments, timeSpan: timeSpan};
+            const stat = {totalComments: totalComments, timeSpan: timeSpan};
+            // The storage may contain junk -- e.g. data written by older versions; let's check it.
+            if (isStatsValid(stat))
+                this._data[ownerId] = stat;
         }
     }
 

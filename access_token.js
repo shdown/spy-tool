@@ -18,7 +18,11 @@ export const requestAccessToken = async (scope) => {
         'VKWebAppGetAuthToken',
         'VKWebAppAccessTokenReceived',
         'VKWebAppAccessTokenFailed',
-        {app_id: GLOBAL_CONFIG.APP_ID, scope: scope});
+        {
+            app_id: GLOBAL_CONFIG.APP_ID,
+            scope: scope,
+        }
+    );
 
     if (!isSubset(splitPermissions(scope), splitPermissions(result.scope)))
         throw new AccessTokenError(scope, result.scope);

@@ -41,7 +41,6 @@ export class VkRequest {
 
     on(key, fn) {
         this.callbacks[key] = fn;
-        return this;
     }
 
     schedule() {
@@ -65,10 +64,10 @@ export class VkRequestError extends Error {
 
 export const vkSendRequest = (method, successKey, failureKey, params) => {
     return new Promise((resolve, reject) => {
-        new VkRequest(method, params)
-            .on(successKey, resolve)
-            .on(failureKey, (data) => reject(new VkRequestError(data)))
-            .schedule();
+        const r = new VkRequest(method, params);
+        r.on(successKey, resolve);
+        r.on(failureKey, (data) => reject(new VkRequestError(data)));
+        r.schedule();
     });
 };
 

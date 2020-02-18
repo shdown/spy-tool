@@ -50,7 +50,6 @@ export class VkApiSession {
 
     setRateLimitCallback(fn) {
         this._rateLimitCallback = fn;
-        return this;
     }
 
     async _limitRate(reason, delayMillis) {
@@ -90,8 +89,8 @@ export class VkApiSession {
                 case 6:
                     await this._limitRate('rateLimit', 3000);
                     break;
-                case 9: // this one was not seen in practice, but still...
-                    await this._limitRate('rateLimitHard', 9000);
+                case 9:
+                    await this._limitRate('rateLimitHard', 5000);
                     break;
                 case 1:
                 case 10:
