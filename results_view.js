@@ -8,6 +8,7 @@ export class ResultsView extends View {
         this._div = document.createElement('div');
         this._backBtn = document.createElement('input');
         this._backBtn.setAttribute('type', 'button');
+        this._backBtn.setAttribute('class', 'rv-button-back');
         this._backBtn.setAttribute('value', __('Back'));
         this._backBtn.onclick = () => {
             super._emitSignal('back');
@@ -42,10 +43,10 @@ export class ResultsView extends View {
                 const a = createAnchor(datum.link);
                 const span = document.createElement('span');
                 if (datum.isNew) {
-                    span.style = 'font-weight: bold;';
+                    span.setAttribute('class', 'rv-li-note-new');
                     span.append(__(' (new)'));
                 } else {
-                    span.style = 'color: #999;';
+                    span.setAttribute('class', 'rv-li-note-old');
                     span.append(__(' (old)'));
                 }
                 li.appendChild(a);

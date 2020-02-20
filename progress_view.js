@@ -10,8 +10,8 @@ export class ProgressView extends View {
         this._div = document.createElement('div');
 
         this._progress = document.createElement('progress');
+        this._progress.setAttribute('class', 'pv-progress-bar');
         this._progress.setAttribute('max', String(PROGRESS_MAX));
-        this._progress.style = 'display: block; width: 100%;';
         this._div.appendChild(this._progress);
 
         this._chartView = new ChartView();
@@ -20,13 +20,14 @@ export class ProgressView extends View {
         this._bottom = document.createElement('div');
         this._cancelBtn = document.createElement('input');
         this._cancelBtn.setAttribute('type', 'button');
+        this._cancelBtn.setAttribute('class', 'pv-button-cancel');
         this._cancelBtn.setAttribute('value', __('Cancel'));
         this._cancelBtn.onclick = () => {
             super._emitSignal('cancel');
             return false;
         };
         this._log = document.createElement('span');
-        this._log.style = 'margin-left: 1em;';
+        this._log.setAttribute('class', 'pv-log-text');
 
         this._bottom.appendChild(this._cancelBtn);
         this._bottom.appendChild(this._log);

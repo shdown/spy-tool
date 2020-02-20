@@ -9,6 +9,7 @@ export class ArchiveView extends View {
         this._div = document.createElement('div');
         this._backBtn = document.createElement('input');
         this._backBtn.setAttribute('type', 'button');
+        this._backBtn.setAttribute('class', 'av-button-back');
         this._backBtn.setAttribute('value', __('Back'));
         this._backBtn.onclick = () => {
             super._emitSignal('back');
@@ -36,7 +37,6 @@ export class ArchiveView extends View {
 
                 inner.append(__('Comments by '));
                 inner.appendChild(createAnchor(vkEntityUrl(entityId)));
-                inner.append(':');
                 inner.appendChild(document.createElement('br'));
 
                 const ul = document.createElement('ul');

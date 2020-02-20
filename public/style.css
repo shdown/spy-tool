@@ -24,3 +24,20 @@ fieldset {
 .fv-form-log-area {
     margin-top: 0.7em;
 }
+
+.pv-progress-bar {
+    display: block;
+    width: 100%;
+}
+
+.pv-log-text {
+    margin-left: 1em;
+}
+
+.rv-li-note-new {
+    font-weight: bold;
+}
+
+.rv-li-note-old {
+    color: #999;
+}
