@@ -120,23 +120,25 @@ class Hardware {
     }
 
     async write(rawKey, value) {
-        try {
-            await this._session.apiRequest(
-                'storage.set',
-                {
-                    key: rawKey,
-                    value: value,
-                    v: '5.103',
-                },
-                /*raw=*/false,
-                /*forwardErrors=*/{9: true}
-            );
-        } catch (err) {
-            if (!(err instanceof VkApiError))
-                throw err;
-            if (err.code !== 9)
-                throw err;
-            throw new HardwareRateLimitError();
+        while (true) {
+            try {
+                await this._session.apiRequest(
+                    'storage.set',
+                    {
+                        key: rawKey,
+                        value: value,
+                        v: '5.103',
+                    },
+                    /*raw=*/false,
+                    /*forwardErrors=*/true
+                );
+            } catch (err) {
+                if (!(err instanceof VkApiError) || err.code !== 9) {
+                    await this._session.handleOrThrow(err);
+                    continue;
+                }
+                throw new HardwareRateLimitError();
+            }
         }
     }
 }
