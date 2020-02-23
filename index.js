@@ -123,7 +123,7 @@ const asyncMain = async () => {
                     progressView.setProgress(datum.numerator / datum.denominator);
                 },
                 error: async (datum) => {
-                    const error = datum.error;
+                    const error = datum.what;
                     progressView.setLogText(
                         __('Error gathering statistics: {0}',
                            `${error.name}: ${error.message}`));
@@ -232,11 +232,11 @@ const asyncMain = async () => {
                     }
                 },
                 error: async (datum) => {
-                    const error = datum.error;
+                    const error = datum.what;
+                    const when = datum.when;
                     progressView.setLogText(
-                        __('Error checking {0}: {1}',
-                           `${oid}_${datum.postId}`,
-                           `${error.name}: ${error.message}`));
+                        __('Error checking {0} at {1}: {2}',
+                           oid, when, `${error.name}: ${error.message}`));
                     console.log('error callback payload:');
                     console.log(error);
                 },

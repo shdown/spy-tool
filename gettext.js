@@ -8,7 +8,7 @@ const trnRu = {
     'Checking user…': 'Проверяю пользователя…',
     'Comments by ': 'Комментарии ',
     'Error: {0}': 'Ошибка: {0}',
-    'Error checking {0}: {1}': 'Ошибка при проверке {0}: {1}',
+    'Error checking {0} at {1}: {2}': 'Ошибка проверки {0} при {1}: {2}',
     'Error gathering statistics: {0}': 'Ошибка при сборе статистики: {0}',
     'Fill with user subscriptions': 'Заполнить подписками пользователя',
     'Find!': 'Найти!',

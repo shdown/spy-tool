@@ -23,12 +23,24 @@ class Reader {
     }
 
     async _repopulateCache() {
-        const result = await this._config.session.apiRequest('wall.get', {
-            owner_id: this._config.oid,
-            offset: this._globalOffset,
-            count: MAX_POSTS,
-            v: '5.101',
-        });
+        let result;
+        try {
+            result = await this._config.session.apiRequest('wall.get', {
+                owner_id: this._config.oid,
+                offset: this._globalOffset,
+                count: MAX_POSTS,
+                v: '5.101',
+            });
+        } catch (err) {
+            if (!(err instanceof VkApiError))
+                throw err;
+            await this._config.callback('error', {
+                what: err,
+                when: `wall.get(), offset=${this._globalOffset}`,
+            });
+            await this._setEOF('error');
+            return;
+        }
 
         // Let's explicitly copy the slice -- I don't trust modern JS engines not to introduce a
         // memory leak here.
@@ -213,7 +225,10 @@ export const findPosts = async (config) => {
             } catch (err2) {
                 if (!(err2 instanceof VkApiError))
                     throw err2;
-                await config.callback('error', {postId: firstValue.id, error: err2});
+                await config.callback('error', {
+                    what: err2,
+                    when: `wall.getComments(), post_id=${firstValue.id}`,
+                });
                 // Let's just skip this one.
                 amountsById = {};
                 amountsById[firstValue.id] = Infinity;
@@ -244,7 +259,7 @@ const gatherStatsBatch = async (config, batch, result) => {
                 throw err;
             if (err.code !== 13)
                 throw err;
-            await config.callback('error', {error: err});
+            await config.callback('error', {what: err});
         }
     }
 
