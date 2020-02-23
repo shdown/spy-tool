@@ -132,6 +132,7 @@ class Hardware {
                     /*raw=*/false,
                     /*forwardErrors=*/true
                 );
+                break;
             } catch (err) {
                 if (!(err instanceof VkApiError) || err.code !== 9) {
                     await this._session.handleOrThrow(err);
