@@ -1,4 +1,4 @@
-import { monotonicNowMillis, sleepMillis } from "./utils.js";
+import { monotonicNowMillis } from "./utils.js";
 
 export class VkApiError extends Error {
     constructor(code, msg) {
@@ -9,43 +9,15 @@ export class VkApiError extends Error {
     }
 }
 
-export class VkApiCancellation extends Error {
-    constructor() {
-        super('Cancellation');
-        this.name = 'VkApiCancellation';
-    }
-}
-
 const MIN_DELAY_MILLIS = 360;
 
 export class VkApiSession {
-    constructor(transport) {
+    constructor(transport, context) {
         this._transport = transport;
+        this._context = context;
         this._rateLimitCallback = null;
         this._lastRequestTimestamp = -Infinity;
         this._cancelFlag = false;
-    }
-
-    _maybeThrowForCancel() {
-        if (this._cancelFlag) {
-            this._cancelFlag = false;
-            throw new VkApiCancellation();
-        }
-    }
-
-    async _sleepMillis(ms) {
-        const MAX_LAG = 200;
-        while (ms >= MAX_LAG) {
-            this._maybeThrowForCancel();
-            await sleepMillis(MAX_LAG);
-            ms -= MAX_LAG;
-        }
-        this._maybeThrowForCancel();
-        await sleepMillis(ms);
-    }
-
-    setCancelFlag(flag) {
-        this._cancelFlag = flag;
     }
 
     setRateLimitCallback(fn) {
@@ -53,18 +25,18 @@ export class VkApiSession {
     }
 
     async _limitRate(reason, delayMillis) {
-        if (this._rateLimitCallback)
+        if (this._rateLimitCallback !== null)
             this._rateLimitCallback(reason);
-        await this._sleepMillis(delayMillis);
+        await this._context.sleepMillis(delayMillis);
     }
 
-    async _apiRequestNoRateLimit(method, params, raw) {
+    async apiRequestForwardErrors(method, params, raw) {
         const now = monotonicNowMillis();
         const delay = now - this._lastRequestTimestamp;
         if (delay < MIN_DELAY_MILLIS)
-            await this._sleepMillis(MIN_DELAY_MILLIS - delay);
+            await this._context.sleepMillis(MIN_DELAY_MILLIS - delay);
 
-        this._maybeThrowForCancel();
+        this._context.maybeThrowForCancel();
 
         this._lastRequestTimestamp = monotonicNowMillis();
 
@@ -92,20 +64,18 @@ export class VkApiSession {
         }
     }
 
-    async apiRequest(method, params, raw = false, forwardErrors = false) {
+    async apiRequest(method, params, raw = false) {
         while (true) {
             try {
-                return await this._apiRequestNoRateLimit(method, params, raw);
+                return await this.apiRequestForwardErrors(method, params, raw);
             } catch (err) {
-                if (forwardErrors)
-                    throw err;
                 await this.handleOrThrow(err);
             }
         }
     }
 
-    async apiExecuteRaw(params, forwardErrors = false) {
-        const result = await this.apiRequest('execute', params, /*raw=*/true, forwardErrors);
+    async apiExecute(params) {
+        const result = await this.apiRequest('execute', params, /*raw=*/true);
         const errors = result.execute_errors || [];
         return {
             response: result.response,

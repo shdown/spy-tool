@@ -72,7 +72,7 @@ class Reader {
             await this._config.callback('infoAdd', value);
             newCache.push(value);
         }
-        await this._config.callback('infoFlush', null);
+        await this._config.callback('infoFlush');
 
         this._cache = newCache;
         this._cachePos = 0;
@@ -136,7 +136,7 @@ class HotGroup {
             if (!expellThis)
                 newHotArray.push(value);
         }
-        await this._config.callback('infoFlush', null);
+        await this._config.callback('infoFlush');
         this._hotArray = newHotArray;
     }
 }
@@ -161,7 +161,7 @@ const scheduleBatch = (hotArray) => {
 };
 
 const foolProofExecute = async (config, params) => {
-    const {response, errors} = await config.session.apiExecuteRaw(params);
+    const {response, errors} = await config.session.apiExecute(params);
 
     if (errors.length === 0 || Array.isArray(response))
         return response;
@@ -241,7 +241,7 @@ export const findPosts = async (config) => {
 //-------------------------------------------------------------------------------------------------
 
 const gatherStatsBatch = async (config, batch, result) => {
-    let executeResult = undefined;
+    let executeResult = null;
     for (let count = MAX_COMMENTS; count > 1; count >>= 1) {
         let code = `var i = 0, r = [];`;
         code += `var d = [${batch.join(',')}];`;
@@ -263,7 +263,7 @@ const gatherStatsBatch = async (config, batch, result) => {
         }
     }
 
-    if (executeResult === undefined)
+    if (executeResult === null)
         return;
 
     for (let i = 0; i < batch.length; ++i) {

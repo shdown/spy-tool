@@ -4,7 +4,8 @@ import { sleepMillis, unduplicate, fromHtml, htmlEscape } from './utils.js';
 import { requestAccessToken } from './access_token.js';
 
 import { VkRequest, Transport } from './vk_transport_connect.js';
-import { VkApiSession, VkApiCancellation } from './vk_api.js';
+import { VkApiSession } from './vk_api.js';
+import { Context, ContextCancellation } from './context.js';
 
 import { findPosts, gatherStats } from './algo.js';
 
@@ -46,7 +47,8 @@ const asyncMain = async () => {
 
     const transport = new Transport();
     transport.setAccessToken(await requestAccessToken(/*scope=*/''));
-    const session = new VkApiSession(transport);
+    const context = new Context(/*maxLagMillis=*/200);
+    const session = new VkApiSession(transport, context);
 
     const storage = new RateLimitedStorage(
         /*limits=*/{
@@ -115,8 +117,9 @@ const asyncMain = async () => {
         progressView.setLogText(__('Gathering statistics…'));
         progressView.setProgress(0);
         const gatherResults = await gatherStats({
-            oids: oidsToGatherStats,
             session: session,
+            context: context,
+            oids: oidsToGatherStats,
             ignorePinned: resolveConfig.ignorePinned,
             callback: makeCallbackDispatcher({
                 progress: async (datum) => {
@@ -244,6 +247,7 @@ const asyncMain = async () => {
 
             await findPosts({
                 session: session,
+                context: context,
                 oid: oid,
                 uid: uid,
                 sinceTimestamp: sinceTimestamp,
@@ -262,7 +266,7 @@ const asyncMain = async () => {
 
         while (storage.hasSomethingToFlush()) {
             progressView.setLogText(__('Saving results…'));
-            await sleepMillis(200);
+            await context.sleepMillis(200);
             await storage.flush();
         }
 
@@ -327,16 +331,16 @@ const asyncMain = async () => {
         };
         work(workConfig)
             .then((results) => {
-                session.setCancelFlag(false);
+                context.setCancelFlag(false);
                 session.setRateLimitCallback(null);
 
                 viewManager.show(resultsView);
                 resultsView.setResults(results);
             }).catch((err) => {
-                session.setCancelFlag(false);
+                context.setCancelFlag(false);
                 session.setRateLimitCallback(null);
 
-                if (err instanceof VkApiCancellation) {
+                if (err instanceof ContextCancellation) {
                     viewManager.show(formView);
                 } else {
                     viewManager.show(resultsView);
@@ -366,7 +370,7 @@ const asyncMain = async () => {
         viewManager.show(formView);
     });
     progressView.subscribe('cancel', () => {
-        session.setCancelFlag(true);
+        context.setCancelFlag(true);
     });
 
     viewManager.show(formView);

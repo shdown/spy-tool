@@ -48,8 +48,9 @@ export class ChartController {
         let i = this._bars.length - 1;
         while (i !== -1 && this._bars[i] === null)
             --i;
-        if (i !== this._bars.length - 1)
-            this._assign(i + 1, value);
+        ++i;
+        if (i !== this._bars.length)
+            this._assign(i, value);
     }
 
     handleUpdate(value) {
