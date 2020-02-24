@@ -1,6 +1,6 @@
 import { __ } from './gettext.js';
 
-import { sleepMillis, unduplicate, fromHtml, htmlEscape } from './utils.js';
+import { unduplicate, fromHtml, htmlEscape } from './utils.js';
 import { requestAccessToken } from './access_token.js';
 
 import { VkRequest, Transport } from './vk_transport_connect.js';
