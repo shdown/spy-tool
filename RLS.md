@@ -29,11 +29,11 @@ As of now, two things:
 
 2. Found posts — a mapping from user IDs to (`owner ID`, `post ID`, `comment ID`) triples.
 
-In future, we will also probably need to store the following things:
+In future, we will also probably need to store the following:
 
 3. List of to-be-stalked users, probably with list of public IDs for each.
 
-4. The following mapping: `user ID => public ID => last checked timestamp`.
+4. A mapping from (`user ID`, `public ID`) pairs to the last checked timestamp.
 
 The abstraction
 ---
@@ -56,8 +56,8 @@ The rationale
 (1024 + 100) * 1000 = 1.07 Mb, so we can just cache everything in memory. Thus, we don’t need to
 store “mappings” differently from simple lists of (`key`, `value`) pairs.
 
-It is OK if we lose some number of oldest “statistics” records; likewise, it is OK if we lose some
-number of the oldest found posts.
+The key observation is that we don’t care if lose some number of the oldest “statistics” records;
+likewise, we don’t care if we lose some number of the oldest found posts.
 
 So, circular buffer-like semantics (append-only, possibly-overwrite-oldest) is fine for us.
 
