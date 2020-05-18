@@ -65,7 +65,7 @@ const asyncMain = async () => {
     const archiveView = new ArchiveView();
 
     const resolveDomainToId = async (domain) => {
-        if (domain.match(/^-?\d+$/) !== null)
+        if (domain.match(/^-?[0-9]+$/) !== null)
             return parseInt(domain);
 
         let m = domain.match(/^.*\/(.*)$/);
@@ -376,16 +376,19 @@ const asyncMain = async () => {
     viewManager.show(formView);
 };
 
+const reportError = (text) => {
+    const rootDiv = document.getElementById('root');
+    rootDiv.prepend(fromHtml(`<div class="error">${htmlEscape(text)}</div>`));
+};
+
 
 const installGlobalErrorHandler = () => {
-    const rootDiv = document.getElementById('root');
     window.onerror = (errorMsg, url, lineNum, columnNum, errorObj) => {
-        rootDiv.prepend(fromHtml(`
-<div class="error">
-  ${htmlEscape(`Error: ${errorMsg} @ ${url}:${lineNum}:${columnNum}`)}
-</div>`));
+        reportError(`Error: ${errorMsg} @ ${url}:${lineNum}:${columnNum}`);
+
         console.log('Error object:');
         console.log(errorObj);
+
         return false;
     };
 };
@@ -396,8 +399,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     new VkRequest('VKWebAppInit', {}).schedule();
 
-    asyncMain()
-        .catch((err) => {
-            throw err;
-        });
+    asyncMain().catch((err) => {
+        reportError(`Error: ${err.name}: ${err.message}`);
+        throw err;
+    });
 });

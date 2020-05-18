@@ -28,7 +28,7 @@ export const htmlEscape = (s) => {
 export const fromHtml = (html) => {
     const tmpl = document.createElement('template');
     tmpl.innerHTML = html;
-    return tmpl.content.firstChild;
+    return tmpl.content.firstElementChild;
 };
 
 export const parseSearchString = (search) => {
