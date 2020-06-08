@@ -14,7 +14,7 @@
     "chart.js": "^2.9.3"
   },
   "devDependencies": {
-    "browserify": "^16.5.0",
+    "browserify": "^16.5.1",
     "esmify": "^2.1.1"
   }
 }

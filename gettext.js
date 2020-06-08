@@ -32,6 +32,7 @@ const trnRu = {
     'Time limit, days:': 'Ограничение по времени, в днях:',
     'User:': 'Пользователь:',
     'We are being too fast ({0})': 'Умерим пыл ({0})',
+    'Reload': 'Перезапуск',
 };
 
 const translations = {

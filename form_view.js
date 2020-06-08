@@ -146,6 +146,16 @@ export class FormView extends View {
                 },
             });
 
+            this._reloadBtn = createButton({
+                container: fieldSet,
+                value: __('Reload'),
+                kind: 'reload',
+                onclick: () => {
+                    super._emitSignal('reload');
+                    return false;
+                },
+            });
+
             this._form.appendChild(fieldSet);
         }
 

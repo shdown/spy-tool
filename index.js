@@ -363,6 +363,11 @@ const asyncMain = async () => {
                     /*tone=*/'error');
             });
     });
+
+    formView.subscribe('reload', () => {
+        window.location.reload();
+    });
+
     archiveView.subscribe('back', () => {
         viewManager.show(formView);
     });
