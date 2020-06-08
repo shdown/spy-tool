@@ -16,8 +16,6 @@ export class AccessTokenError extends Error {
 export const requestAccessToken = async (scope) => {
     const result = await vkSendRequest(
         'VKWebAppGetAuthToken',
-        'VKWebAppAccessTokenReceived',
-        'VKWebAppAccessTokenFailed',
         {
             app_id: GLOBAL_CONFIG.APP_ID,
             scope: scope,

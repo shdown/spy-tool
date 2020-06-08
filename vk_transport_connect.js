@@ -1,60 +1,7 @@
-import connect from "@vkontakte/vk-connect";
+import bridge from "@vkontakte/vk-bridge";
 import { VkApiError } from "./vk_api.js";
 
-const methodsByKey = {};
-const requestsByMethod = {};
-
-const doSend = (request) => {
-    for (const key in request.callbacks)
-        methodsByKey[key] = request.method;
-    requestsByMethod[request.method] = request;
-    connect.send(request.method, request.params);
-};
-
-connect.subscribe((event) => {
-    const { type, data } = event.detail;
-    const method = methodsByKey[type];
-    const request = requestsByMethod[method];
-
-    // This also catches the 'method === undefined' case:
-    if (request === undefined) {
-        // "VKWebAppUpdateConfig"
-        // "VKWebAppInitResult"
-        console.log(`W: no handler for VK event of type "${type}"`);
-        return;
-    }
-
-    if (request.next !== null)
-        doSend(request.next);
-    else
-        delete requestsByMethod[method];
-    request.callbacks[type](data);
-});
-
-export class VkRequest {
-    constructor(method, params) {
-        this.method = method;
-        this.params = params;
-        this.callbacks = {};
-        this.next = null;
-    }
-
-    on(key, fn) {
-        this.callbacks[key] = fn;
-    }
-
-    schedule() {
-        const ongoing = requestsByMethod[this.method];
-        if (ongoing !== undefined) {
-            this.next = ongoing.next;
-            ongoing.next = this;
-        } else {
-            doSend(this);
-        }
-    }
-}
-
-export class VkRequestError extends Error {
+class VkRequestError extends Error {
     constructor(data) {
         super(JSON.stringify(data));
         this.name = 'VkRequestError';
@@ -62,12 +9,15 @@ export class VkRequestError extends Error {
     }
 }
 
-export const vkSendRequest = (method, successKey, failureKey, params) => {
+export const vkSendInitRequest = () => {
+    bridge.send('VKWebAppInit', {});
+};
+
+export const vkSendRequest = (method, params) => {
     return new Promise((resolve, reject) => {
-        const r = new VkRequest(method, params);
-        r.on(successKey, resolve);
-        r.on(failureKey, (data) => reject(new VkRequestError(data)));
-        r.schedule();
+        bridge.send(method, params)
+            .then(resolve)
+            .catch((data) => reject(new VkRequestError(data)));
     });
 };
 
@@ -87,12 +37,9 @@ export class Transport {
         try {
             result = await vkSendRequest(
                 'VKWebAppCallAPIMethod',
-                'VKWebAppCallAPIMethodResult',
-                'VKWebAppCallAPIMethodFailed',
                 {
                     method: method,
                     params: {...params, access_token: this._accessToken},
-                    request_id: '1',
                 }
             );
         } catch (err) {

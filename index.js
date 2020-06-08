@@ -3,7 +3,7 @@ import { __ } from './gettext.js';
 import { unduplicate, fromHtml, htmlEscape } from './utils.js';
 import { requestAccessToken } from './access_token.js';
 
-import { VkRequest, Transport } from './vk_transport_connect.js';
+import { vkSendInitRequest, Transport } from './vk_transport_connect.js';
 import { VkApiSession } from './vk_api.js';
 import { Context, ContextCancellation } from './context.js';
 
@@ -397,7 +397,7 @@ const installGlobalErrorHandler = () => {
 document.addEventListener('DOMContentLoaded', () => {
     installGlobalErrorHandler();
 
-    new VkRequest('VKWebAppInit', {}).schedule();
+    vkSendInitRequest();
 
     asyncMain().catch((err) => {
         reportError(`Error: ${err.name}: ${err.message}`);
