@@ -1,6 +1,6 @@
 import { __ } from './gettext.js';
 
-import { unduplicate, fromHtml, htmlEscape } from './utils.js';
+import { unduplicate, fromHtml, htmlEscape, doReloadPage } from './utils.js';
 import { requestAccessToken } from './access_token.js';
 
 import { vkSendInitRequest, Transport } from './vk_transport_connect.js';
@@ -365,7 +365,7 @@ const asyncMain = async () => {
     });
 
     formView.subscribe('reload', () => {
-        window.location.reload();
+        doReloadPage();
     });
 
     archiveView.subscribe('back', () => {
@@ -383,7 +383,19 @@ const asyncMain = async () => {
 
 const reportError = (text) => {
     const rootDiv = document.getElementById('root');
-    rootDiv.prepend(fromHtml(`<div class="error">${htmlEscape(text)}</div>`));
+
+    const reloadButton = fromHtml('<button></button>');
+    reloadButton.append(__('Reload'));
+    reloadButton.onclick = () => {
+        doReloadPage();
+        return false;
+    };
+
+    const errorDiv = fromHtml('<div class="error"></div>');
+    errorDiv.append(text);
+    errorDiv.append(reloadButton);
+
+    rootDiv.prepend(errorDiv);
 };
 
 

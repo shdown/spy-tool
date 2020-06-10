@@ -51,3 +51,7 @@ export const createAnchor = (link) => {
     a.append(link);
     return a;
 };
+
+export const doReloadPage = () => {
+    window.location.reload();
+};
