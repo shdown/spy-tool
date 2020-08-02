@@ -25,10 +25,10 @@ export class Context {
     }
 
     async sleepMillis(ms) {
-        const max_lag = this._maxLagMillis;
-        for (; ms > max_lag; ms -= max_lag) {
+        const maxLag = this._maxLagMillis;
+        for (; ms > maxLag; ms -= maxLag) {
             this.maybeThrowForCancel();
-            await sleepMillis(max_lag);
+            await sleepMillis(maxLag);
         }
         this.maybeThrowForCancel();
         await sleepMillis(ms);

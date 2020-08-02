@@ -10,7 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@vkontakte/vk-bridge": "^2.2.2",
+    "@vkontakte/vk-bridge": "^2.2.5",
     "chart.js": "^2.9.3"
   },
   "devDependencies": {
