@@ -45,12 +45,14 @@ export class Transport {
         } catch (err) {
             if (!(err instanceof VkRequestError))
                 throw err;
-            if (err.data.error_type === 'client_error' && err.data.error_data.error_code === 1) {
-                const reason = err.data.error_data.error_reason;
-                throw new VkApiError(reason.error_code, reason.error_msg);
-            } else {
-                throw err;
-            }
+            //if (err.data.error_type === 'client_error' && err.data.error_data.error_code === 1) {
+            //    const reason = err.data.error_data.error_reason;
+            //    throw new VkApiError(reason.error_code, reason.error_msg);
+            //} else {
+            //    throw err;
+            //}
+            const error_data = err.data.error_data;
+            throw new VkApiError(error_data.error_code, error_data.error_msg);
         }
         if (result.error)
             throw new VkApiError(result.error.error_code, result.error.error_msg);
