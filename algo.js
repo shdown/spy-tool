@@ -47,6 +47,9 @@ class Reader {
         const newCache = [...this._cache.slice(this._cachePos)];
 
         for (const datum of result.items) {
+            if (datum.comments === undefined) {
+                continue;
+            }
             const isPinned = datum.is_pinned;
             if (datum.date < this._config.sinceTimestamp && !isPinned) {
                 await this._setEOF('timeLimitReached');
@@ -281,6 +284,9 @@ const gatherStatsBatch = async (config, batch, result) => {
         let earliestTimestamp = Infinity;
         let latestTimestamp = -Infinity;
         for (const post of posts) {
+            if (post.comments === undefined) {
+                continue;
+            }
             const isPinned = post.is_pinned;
             if (isPinned && config.ignorePinned)
                 continue;
