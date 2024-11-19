@@ -31,6 +31,7 @@ const trnRu = {
     'Searching in {0}/{1}…': 'Ищу в {0}/{1}…',
     'Time limit, days:': 'Ограничение по времени, в днях:',
     'User:': 'Пользователь:',
+    'Skip gathering statistics': 'Пропустить сбор статистики',
     'We are being too fast ({0})': 'Умерим пыл ({0})',
     'Reload': 'Перезапуск',
 };

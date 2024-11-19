@@ -246,6 +246,8 @@ export const findPosts = async (config) => {
 const gatherStatsBatch = async (config, batch, result) => {
     let executeResult = null;
     for (let count = MAX_COMMENTS; count > 1; count >>= 1) {
+        console.log(`Trying count = ${count}`);
+
         let code = `var i = 0, r = [];`;
         code += `var d = [${batch.join(',')}];`;
         code += `while (i < ${batch.length}) {`;

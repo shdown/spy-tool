@@ -166,7 +166,7 @@ const asyncMain = async () => {
             oids.push(await resolveDomainToId(domain));
         oids = unduplicate(oids);
 
-        const stats = await resolveStatsFor(oids, {
+        const stats = workConfig.skipStats ? {} : await resolveStatsFor(oids, {
             ignorePinned: workConfig.ignorePinned,
         });
 
@@ -182,15 +182,16 @@ const asyncMain = async () => {
         for (let i = 0; i < oids.length; ++i) {
             const oid = oids[i];
             const stat = stats[oid];
-            if (stat === undefined)
-                continue;
+            //if (stat === undefined)
+            //    continue;
 
             let statusText = __('Searching in {0}/{1}…', `${i + 1}`, `${oids.length}`);
             if (result.length !== 0)
                 statusText += __(' (found {0})', `${result.length}`);
             progressView.setLogText(statusText);
 
-            implicitDenominator -= ProgressEstimator.statsToExpectedCommentsCount(stat, timeLimit);
+            if (stat !== undefined)
+                implicitDenominator -= ProgressEstimator.statsToExpectedCommentsCount(stat, timeLimit);
 
             const estimator = new ProgressEstimator();
             const chartCtl = new ChartController(30, progressView.chartView);
@@ -327,6 +328,7 @@ const asyncMain = async () => {
             userDomain: formView.userDomain,
             publicDomains: formView.ownerDomains,
             timeLimit: formView.timeLimitSeconds,
+            skipStats: formView.skipStats,
             ignorePinned: false,
         };
         work(workConfig)
